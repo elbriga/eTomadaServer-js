@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { abrirBanco, TABELAS } from "./db.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -16,11 +17,28 @@ const app = Fastify({
   logger: true,
 });
 
+const db = abrirBanco();
+app.addHook("onClose", async () => {
+  db.close();
+});
+
 app.get("/health", async () => ({
   ok: true,
   service: "eTomadaServer",
   environment: env,
 }));
+
+app.get("/health/db", async () => {
+  const tables = {};
+
+  for (const tabela of TABELAS) {
+    const result = db.prepare(`SELECT COUNT(*) AS total FROM ${tabela}`).get();
+
+    tables[tabela] = result.total;
+  }
+
+  return { ok: true, tables };
+});
 
 try {
   await app.listen({ host, port });
