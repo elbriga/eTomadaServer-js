@@ -1,0 +1,16 @@
+{
+  "name": "etomadaserver",
+  "version": "0.0.1",
+  "description": "eTomadaServer",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node --env-file=.env.dev src/server.js"
+  },
+  "author": "elbriga",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "fastify": "^5.12.7"
+  }
+}
