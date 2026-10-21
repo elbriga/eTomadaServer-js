@@ -1,0 +1,153 @@
+[hidden] {
+  display: none !important;
+}
+.screen-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 24px;
+  background: #eef2f6;
+  border-bottom: 1px solid #d8dee6;
+}
+.secondary-button {
+  color: #334155;
+  background: white;
+  border: 1px solid #cbd5e1;
+}
+.secondary-button:hover {
+  background: #f8fafc;
+}
+#history-screen-status {
+  color: #64748b;
+  font-size: 13px;
+  min-height: 18px;
+  align-self: center;
+  margin-left: 4px;
+}
+#history-screen-status[data-error="true"] {
+  color: #b91c1c;
+}
+.history-card {
+  margin: 24px;
+  padding: 20px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+.history-card h2 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+.auto-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.auto-label input {
+  min-width: 0;
+  width: 16px;
+  height: 16px;
+}
+[data-role="history-chart"] svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: pan-y;
+}
+[data-role="history-chart"] {
+  min-height: 200px;
+}
+#history-status[data-error="true"] {
+  color: #b91c1c;
+}
+.history-note,
+[data-role="history-point"] {
+  font-size: 12px;
+  color: #64748b;
+}
+[data-role="history-summary"] {
+  color: #475569;
+  font-size: 14px;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+summary {
+  cursor: pointer;
+  font-weight: bold;
+}
+.history-card .table-container {
+  padding: 16px 0 0;
+}
+.history-card td {
+  padding: 8px;
+}
+@media (max-width: 600px) {
+  .screen-toolbar {
+    padding: 14px 12px;
+  }
+  .history-card {
+    margin: 12px;
+    padding: 12px;
+  }
+  .filters {
+    padding: 16px 12px;
+  }
+  .filter {
+    flex: 1;
+    min-width: 140px;
+  }
+  .filter input,
+  .filter select {
+    width: 100%;
+    min-width: 0;
+  }
+  .status {
+    width: 100%;
+    margin: 0;
+  }
+}
+
+.chart-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.chart-heading label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.chart-close {
+  background: #64748b;
+  padding: 0 12px;
+}
+.chart-close:hover {
+  background: #475569;
+}
+.page-note {
+  margin: 16px 24px;
+}
+.chart-error {
+  color: #b91c1c;
+}
+@media (max-width: 600px) {
+  .chart-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .chart-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

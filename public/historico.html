@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>eTomada Server - Histórico</title>
+  <link rel="icon" href="/static/favicon.ico" />
+  <link rel="stylesheet" href="/static/estilo.css" />
+  <link rel="stylesheet" href="/static/historico.css" />
+  <script src="/static/historico.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>eTomada Server</h1>
+    <nav><a href="/">Logs</a><a href="/historico" aria-current="page">Histórico</a></nav>
+  </header>
+  <main>
+    <section class="screen-toolbar" aria-label="Telas do histórico">
+      <div class="filter"><label for="history-screen">Tela</label><select id="history-screen"></select></div>
+      <button id="history-screen-add" type="button">Nova tela</button>
+      <button id="history-screen-delete" class="secondary-button" type="button">Excluir tela</button>
+      <span id="history-screen-status" role="status" aria-live="polite"></span>
+    </section>
+    <form id="history-form" class="filters">
+      <div class="filter"><label for="history-node">Nodo</label><select id="history-node" required></select></div>
+      <div class="filter"><label for="history-resource">Recurso</label><select id="history-resource" required></select></div>
+      <button id="history-add" type="button">Adicionar</button>
+      <div class="filter"><label for="history-period">Período</label><select id="history-period"><option value="1">Última hora</option><option value="6">Últimas 6 horas</option><option value="24" selected>Últimas 24 horas</option><option value="168">Últimos 7 dias</option><option value="custom">Personalizado</option></select></div>
+      <div id="custom-start" class="filter" hidden><label for="history-start">Início (hora local)</label><input id="history-start" type="datetime-local" /></div>
+      <div id="custom-end" class="filter" hidden><label for="history-end">Fim (hora local)</label><input id="history-end" type="datetime-local" /></div>
+      <button id="history-load" type="submit">Atualizar</button>
+      <label class="auto-label"><input id="history-auto" type="checkbox" /> Automático (15 s)</label>
+      <p id="history-status" class="status" role="status" aria-live="polite">Carregando recursos…</p>
+    </form>
+    <p class="history-note page-note">Horários locais do navegador. O timestamp representa o recebimento no servidor. Todos os gráficos compartilham o mesmo eixo de tempo. Intervalos entre amostras não confirmam que o dispositivo permaneceu online.</p>
+    <div id="history-charts"></div>
+  </main>
+</body>
+</html>

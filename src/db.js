@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { existsSync, realpathSync, lstatSync } from "node:fs";
 import path from "node:path";
 
 export const TABELAS = [
@@ -22,8 +23,11 @@ export function abrirBanco() {
       throw new Error("Banco DEV fora do diretório permitido");
   }
 
+  if (!existsSync(arquivo)) throw new Error(`Banco inexistente: ${arquivo}`);
+
   const db = new DatabaseSync(arquivo, {
-    readOnly: true,
+    readOnly: false,
+    timeout: 2000,
   });
 
   try {

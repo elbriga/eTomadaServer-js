@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+    <title>eTomada Server - Logs</title>
+    <link rel="stylesheet" href="/static/estilo.css" />
+  </head>
+
+  <body>
+    <header>
+      <h1>eTomada Server</h1>
+      <nav><a href="/" aria-current="page">Logs</a><a href="/historico">Histórico</a></nav>
+    </header>
+
+    <div class="filters">
+      <div class="filter">
+        <label>Nodo</label>
+
+        <select id="device">
+          <option value="">Todos</option>
+        </select>
+      </div>
+
+      <div class="filter">
+        <label>Nível</label>
+
+        <select id="level">
+          <option value="">Todos</option>
+          <option value="!CRIT!">CRITICO</option>
+          <option value="AVISO!">AVISO</option>
+          <option value="NORMAL">NORMAL</option>
+          <option value="DEBUG0">DEBUG0</option>
+          <option value="DEBUG!">DEBUG</option>
+          <option value="TESTE!">TESTE</option>
+        </select>
+      </div>
+
+      <div class="filter">
+        <label>Módulo</label>
+
+        <input id="module" type="text" placeholder="ex: regras" />
+      </div>
+
+      <div class="filter">
+        <label>Mensagem</label>
+
+        <input id="search" type="text" placeholder="Pesquisar..." />
+      </div>
+
+      <button onclick="carregarLogs()">Atualizar</button>
+
+      <div class="status" id="status">-</div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Hora</th>
+            <th>IP</th>
+            <th>Uptime</th>
+            <th>Módulo</th>
+            <th>Nível</th>
+            <th>Nodo</th>
+            <th>Mensagem</th>
+          </tr>
+        </thead>
+
+        <tbody id="logs"></tbody>
+      </table>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
