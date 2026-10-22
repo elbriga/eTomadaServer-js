@@ -1,4 +1,4 @@
-export default async function resourcesRoutes(app, { db }) {
+export default async function resourcesRoutes(app, { db, monitor }) {
   const upsertResource = db.prepare(`
     INSERT INTO resources (
       device_id,
@@ -79,6 +79,10 @@ export default async function resourcesRoutes(app, { db }) {
         db.exec("ROLLBACK");
         throw err;
       }
+
+      // Atualiza o monitor com o snapshot espontâneo.
+      // Não realiza uma nova requisição HTTP ao nodo.
+      monitor.receberSnapshot(request.body);
 
       return {
         ok: true,

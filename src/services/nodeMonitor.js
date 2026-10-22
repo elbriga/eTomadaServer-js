@@ -30,6 +30,8 @@ export function criarNodeMonitor({
         duracao_ms: null,
         last_error: null,
         snapshot: null,
+        origem: null,
+        revisaoPush: 0,
       });
     }
     return estados.get(deviceId);
@@ -48,12 +50,14 @@ export function criarNodeMonitor({
       last_seen_at: s?.last_seen_at ?? null,
       duracao_ms: s?.duracao_ms ?? null,
       last_error: s?.last_error ?? null,
+      origem: s?.origem ?? null,
       ...(incluirSnapshot ? { snapshot: s?.snapshot ?? null } : {}),
     };
   }
 
   async function executarConsulta(deviceId) {
     const s = estado(deviceId);
+    const revisaoInicial = s.revisaoPush;
     s.last_poll_at = agora();
 
     let resultado;
@@ -61,6 +65,12 @@ export function criarNodeMonitor({
     try {
       resultado = await consultarSnapshot(deviceId, timeoutMs);
     } catch (erro) {
+      // Um POST mais recente já confirmou o nodo online.
+      // Não deixar um GET antigo alterar esse estado.
+      if (s.revisaoPush !== revisaoInicial || estados.get(deviceId) !== s) {
+        throw erro;
+      }
+
       s.falhas++;
       s.last_error = {
         code: erro.code ?? "ERROR",
@@ -78,6 +88,11 @@ export function criarNodeMonitor({
       throw erro;
     }
 
+    // O POST recebido durante o GET tem prioridade.
+    if (s.revisaoPush !== revisaoInicial || estados.get(deviceId) !== s) {
+      return { ...resultado, desatualizado: true };
+    }
+
     const anterior = s.status;
     s.status = "online";
     s.falhas = 0;
@@ -85,6 +100,7 @@ export function criarNodeMonitor({
     s.last_seen_at = agora();
     s.duracao_ms = resultado.duracao_ms;
     s.snapshot = resultado.snapshot;
+    s.origem = "poll";
 
     const node = nodes.buscar(deviceId);
 
@@ -131,7 +147,7 @@ export function criarNodeMonitor({
     const resultado = await tarefa;
 
     // Consultas manuais podem exigir persistência imediata.
-    if (persistir) {
+    if (persistir && !resultado.desatualizado) {
       nodes.salvarSnapshot(id, resultado.snapshot);
     }
 
@@ -185,8 +201,54 @@ export function criarNodeMonitor({
     }, delay);
   }
 
+  function receberSnapshot(snapshot) {
+    const deviceId = snapshot.device_id.trim().toUpperCase();
+    const node = nodes.buscar(deviceId);
+
+    if (!node) {
+      log.warn(
+        { device_id: deviceId },
+        "Snapshot recebido de nodo não cadastrado",
+      );
+      return false;
+    }
+
+    // Persiste imediatamente o snapshot de boot.
+    // Se a gravação falhar, não altera o estado em memória.
+    if (!nodes.salvarSnapshot(node.device_id, snapshot)) {
+      return false;
+    }
+
+    const s = estado(node.device_id);
+    const anterior = s.status;
+
+    // Invalida resultados de GET iniciados antes deste POST.
+    s.revisaoPush++;
+
+    s.status = "online";
+    s.falhas = 0;
+    s.last_error = null;
+    s.last_seen_at = agora();
+    s.duracao_ms = null;
+    s.snapshot = snapshot;
+    s.origem = "push";
+
+    if (node.enabled && anterior !== "online") {
+      log.info(
+        {
+          device_id: node.device_id,
+          origem: "POST /api/snapshot",
+        },
+        anterior === "offline" ? "Nodo RECONECTADO" : "Nodo ONLINE",
+      );
+    }
+
+    return true;
+  }
+
   return {
     consultar,
+    receberSnapshot,
 
     listarStatus() {
       return nodes.listar().map((node) => visualizar(node));
