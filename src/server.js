@@ -10,6 +10,7 @@ import resourcesRoutes from "./routes/resources.js";
 import screensRoutes from "./routes/screens.js";
 import { registrarAuth } from "./auth.js";
 import nodesRoutes from "./routes/nodes.js";
+import { criarNodeMonitor } from "./services/nodeMonitor.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -30,7 +31,10 @@ const app = Fastify({
 registrarAuth(app);
 
 const db = abrirBanco();
+const monitor = criarNodeMonitor({ db, log: app.log });
+
 app.addHook("onClose", async () => {
+  await monitor.parar();
   db.close();
 });
 
@@ -72,7 +76,7 @@ await app.register(logsRoutes, { db, notificarLog });
 await app.register(eventsRoutes, { db });
 await app.register(resourcesRoutes, { db });
 await app.register(screensRoutes, { db });
-await app.register(nodesRoutes, { db });
+await app.register(nodesRoutes, { db, monitor });
 
 let encerrando = false;
 
@@ -95,6 +99,7 @@ process.on("SIGINT", () => void encerrar("SIGINT"));
 
 try {
   await app.listen({ host, port });
+  monitor.iniciar();
 } catch (err) {
   app.log.error(err);
   process.exit(1);

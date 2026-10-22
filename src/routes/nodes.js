@@ -1,5 +1,5 @@
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
-import { consultarSnapshot, NodeClientError } from "../devices/nodeClient.js";
+import { NodeClientError } from "../devices/nodeClient.js";
 
 const deviceIdSchema = {
   type: "string",
@@ -18,7 +18,7 @@ const camposEditaveis = {
   enabled: { type: "boolean" },
 };
 
-export default async function nodesRoutes(app, { db }) {
+export default async function nodesRoutes(app, { db, monitor }) {
   const nodes = criarNodeRepository(db);
 
   // GET /api/nodes
@@ -33,6 +33,25 @@ export default async function nodesRoutes(app, { db }) {
 
       return (
         node ??
+        reply.code(404).send({
+          detail: "Nodo não encontrado",
+        })
+      );
+    },
+  );
+
+  // GET /api/nodes/status
+  app.get("/api/nodes/status", () => monitor.listarStatus());
+
+  // GET /api/nodes/:device_id/status
+  app.get(
+    "/api/nodes/:device_id/status",
+    { schema: { params: paramsSchema } },
+    (request, reply) => {
+      const status = monitor.obterStatus(request.params.device_id);
+
+      return (
+        status ??
         reply.code(404).send({
           detail: "Nodo não encontrado",
         })
@@ -96,7 +115,12 @@ export default async function nodesRoutes(app, { db }) {
         alteracoes.nome = alteracoes.nome.trim();
       }
 
+      const anterior = nodes.buscar(request.params.device_id);
       const node = nodes.atualizar(request.params.device_id, alteracoes);
+
+      if (node && anterior.enabled !== node.enabled) {
+        monitor.resetar(node.device_id);
+      }
 
       return (
         node ??
@@ -118,6 +142,8 @@ export default async function nodesRoutes(app, { db }) {
         });
       }
 
+      monitor.resetar(request.params.device_id);
+
       return reply.code(204).send();
     },
   );
@@ -136,13 +162,9 @@ export default async function nodesRoutes(app, { db }) {
       }
 
       try {
-        const resultado = await consultarSnapshot(node.device_id);
-
-        if (!nodes.salvarSnapshot(node.device_id, resultado.snapshot)) {
-          return reply.code(404).send({
-            detail: "Cadastro removido durante a consulta",
-          });
-        }
+        const resultado = await monitor.consultar(node.device_id, {
+          persistir: true,
+        });
 
         return {
           ok: true,
