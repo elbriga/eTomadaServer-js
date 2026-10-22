@@ -1,12 +1,8 @@
+import { criarLogRepository } from "../repositories/logRepository.js";
+
 export default async function logsRoutes(app, { db, notificarLog }) {
   // POST /api/log
-  const insertLog = db.prepare(`
-    INSERT INTO logs (
-      timestamp, device_id, ip, level,
-      module, message, uptime
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
+  const registrarLog = criarLogRepository(db, notificarLog);
 
   app.post(
     "/api/log",
@@ -29,19 +25,15 @@ export default async function logsRoutes(app, { db, notificarLog }) {
     (request) => {
       const log = request.body;
 
-      const result = insertLog.run(
-        log.timestamp ?? null,
-        log.deviceID,
-        request.ip,
-        log.level,
-        log.module ?? "",
-        log.message,
-        log.uptime ?? null,
-      );
-
-      const id = Number(result.lastInsertRowid);
-
-      notificarLog(id);
+      const id = registrarLog({
+        timestamp: log.timestamp ?? null,
+        device_id: log.deviceID,
+        ip: request.ip,
+        level: log.level,
+        module: log.module ?? "",
+        message: log.message,
+        uptime: log.uptime ?? null,
+      });
 
       return { ok: true, id };
     },

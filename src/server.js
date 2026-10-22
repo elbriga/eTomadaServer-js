@@ -11,6 +11,8 @@ import screensRoutes from "./routes/screens.js";
 import { registrarAuth } from "./auth.js";
 import nodesRoutes from "./routes/nodes.js";
 import { criarNodeMonitor } from "./services/nodeMonitor.js";
+import { criarLogRepository } from "./repositories/logRepository.js";
+import { criarServerLogStream } from "./services/serverLogStream.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -24,8 +26,13 @@ if (!Number.isInteger(port) || port < 1 || port > 65535)
 if (env === "dev" && process.env.ENABLE_PHYSICAL_COMMANDS !== "false")
   throw new Error("Comandos físicos devem estar desabilitados em DEV");
 
+const logsServidor = criarServerLogStream();
+
 const app = Fastify({
-  logger: true,
+  logger: {
+    level: process.env.LOG_LEVEL ?? "info",
+    stream: logsServidor.stream,
+  },
 });
 // Deve ser registrado ANTES das rotas e dos plugins HTTP.
 registrarAuth(app);
@@ -35,6 +42,7 @@ const monitor = criarNodeMonitor({ db, log: app.log });
 
 app.addHook("onClose", async () => {
   await monitor.parar();
+  logsServidor.parar();
   db.close();
 });
 
@@ -70,6 +78,9 @@ app.get("/historico", (request, reply) => {
 });
 // SSE
 const notificarLog = registrarSse(app);
+
+// ==== Logs ====
+logsServidor.configurar(criarLogRepository(db, notificarLog));
 
 // ==== APIs ====
 await app.register(logsRoutes, { db, notificarLog });
