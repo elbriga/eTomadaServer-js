@@ -162,7 +162,7 @@ test("comando confirmado atualiza estado central", async () => {
       estado: true,
     });
 
-    assert.deepEqual(c.notificacoes, ["GROW"]);
+    assert.deepEqual(c.notificacoes, ["GROW", "GROW"]);
   } finally {
     await c.fechar();
   }

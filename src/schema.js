@@ -1,5 +1,5 @@
 // Versão 1: esquema legado + cadastro centralizado de nodos.
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const COLUNAS = {
   logs: [
@@ -54,6 +54,21 @@ const COLUNAS = {
     "created_at",
     "updated_at",
   ],
+  resource_commands: [
+    "id",
+    "device_id",
+    "recurso_id",
+    "global_id",
+    "command",
+    "desired_state",
+    "status",
+    "observed_state",
+    "confirmed_via",
+    "error_code",
+    "error_message",
+    "created_at",
+    "finished_at",
+  ],
 };
 
 export const TABELAS = Object.keys(COLUNAS);
@@ -65,6 +80,7 @@ const INDICES = {
   idx_events_recurso: ["device_id", "recurso_id"],
   idx_events_timestamp: ["timestamp"],
   idx_resources_global_id: ["global_id"],
+  idx_resource_commands_resource: ["device_id", "recurso_id", "id"],
 };
 
 const migracoes = {
@@ -153,6 +169,7 @@ const migracoes = {
       inserirNivel.run(id, nome, id);
     }
   },
+
   2(db) {
     db.exec(`
       ALTER TABLE resources ADD COLUMN global_id TEXT;
@@ -163,6 +180,31 @@ const migracoes = {
 
       CREATE UNIQUE INDEX idx_resources_global_id
         ON resources(global_id COLLATE NOCASE);
+    `);
+  },
+
+  3(db) {
+    db.exec(`
+      CREATE TABLE resource_commands (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id TEXT NOT NULL,
+        recurso_id TEXT NOT NULL,
+        global_id TEXT NOT NULL,
+        command TEXT NOT NULL CHECK (command IN ('ON', 'OFF')),
+        desired_state INTEGER NOT NULL CHECK (desired_state IN (0, 1)),
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'confirmed', 'mismatch', 'uncertain')),
+        observed_state INTEGER
+          CHECK (observed_state IS NULL OR observed_state IN (0, 1)),
+        confirmed_via TEXT,
+        error_code TEXT,
+        error_message TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        finished_at INTEGER
+      );
+
+      CREATE INDEX idx_resource_commands_resource
+        ON resource_commands(device_id, recurso_id, id);
     `);
   },
 };

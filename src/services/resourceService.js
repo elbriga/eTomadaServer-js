@@ -1,6 +1,7 @@
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { enviarComandoRele } from "../devices/nodeClient.js";
+import { criarCommandRepository } from "../repositories/commandRepository.js";
 
 export class ResourceCommandError extends Error {
   constructor(message, code, statusCode = 409) {
@@ -26,7 +27,17 @@ export function criarResourceService({
 }) {
   const nodes = criarNodeRepository(db);
   const resources = criarResourceRepository(db);
+  const commands = criarCommandRepository(db);
   const executando = new Set();
+
+  // Recupera operações interrompidas por restart/crash.
+  const interrompidos = commands.encerrarPendentes();
+  if (interrompidos > 0) {
+    log.warn(
+      { module: "COMMAND", total: interrompidos },
+      "Comandos pendentes recuperados como incertos",
+    );
+  }
 
   async function executar(globalId, comando) {
     const recurso = resources.buscarGlobal(globalId);
@@ -93,8 +104,19 @@ export function criarResourceService({
     }
 
     executando.add(chave);
+    let registro = null;
 
     try {
+      registro = commands.iniciar({
+        device_id: recurso.device_id,
+        recurso_id: recurso.recurso_id,
+        global_id: recurso.global_id,
+        command: comando,
+      });
+
+      // Descarta resultados de polling iniciados antes do comando.
+      monitor.receberEvento(recurso.device_id);
+
       const resposta = await enviarComando({
         deviceId: node.device_id,
         recursoId: recurso.recurso_id,
@@ -145,6 +167,8 @@ export function criarResourceService({
       // Invalida snapshots GET anteriores à confirmação.
       monitor.receberEvento(recurso.device_id);
 
+      const resultado = commands.confirmarResposta(registro.id, estado);
+
       const esperado = comando === "ON";
 
       if (estado !== esperado) {
@@ -158,6 +182,7 @@ export function criarResourceService({
       log.info(
         {
           module: "COMMAND",
+          command_id: registro.id,
           device_id: node.device_id,
           recurso_id: recurso.recurso_id,
           global_id: recurso.global_id,
@@ -170,6 +195,8 @@ export function criarResourceService({
       return {
         ok: true,
         confirmed: true,
+        command_id: registro.id,
+        status: resultado.status,
         global_id: recurso.global_id,
         device_id: node.device_id,
         recurso_id: recurso.recurso_id,
@@ -178,6 +205,21 @@ export function criarResourceService({
         duracao_ms: resposta.duracao_ms,
         msg: resposta.msg ?? null,
       };
+    } catch (erro) {
+      if (registro) {
+        // Atualiza apenas operações ainda pending.
+        // Um mismatch já registrado não será sobrescrito.
+        const resultado = commands.marcarIncerto(
+          registro.id,
+          erro.code ?? "UNEXPECTED_ERROR",
+          erro.message,
+        );
+
+        erro.command_id = registro.id;
+        erro.execution_status = resultado?.status;
+      }
+
+      throw erro;
     } finally {
       executando.delete(chave);
     }

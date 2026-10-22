@@ -4,12 +4,14 @@ import {
   ResourceCommandError,
 } from "../services/resourceService.js";
 import { NodeClientError } from "../devices/nodeClient.js";
+import { criarCommandRepository } from "../repositories/commandRepository.js";
 
 export default async function resourcesRoutes(
   app,
   { db, monitor, permitirComandos = false, enviarComando },
 ) {
   const resources = criarResourceRepository(db);
+  const commandHistory = criarCommandRepository(db);
   const comandos = criarResourceService({
     db,
     monitor,
@@ -65,6 +67,17 @@ export default async function resourcesRoutes(
 
       resources.descobrir(device_id, recursos);
 
+      for (const recurso of recursos) {
+        if (recurso.remoto === true) continue;
+
+        commandHistory.reconciliar(
+          device_id,
+          recurso.id,
+          recurso.device?.estado,
+          "push",
+        );
+      }
+
       // Atualiza o monitor com o snapshot espontâneo.
       // Não realiza uma nova requisição HTTP ao nodo.
       monitor.receberSnapshot(request.body);
@@ -112,6 +125,59 @@ export default async function resourcesRoutes(
           detail: "Recurso não encontrado",
         })
       );
+    },
+  );
+
+  // GET /api/resources/:global_id/state
+  app.get(
+    "/api/resources/:global_id/state",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["global_id"],
+          properties: { global_id: globalIdSchema },
+        },
+      },
+    },
+    (request, reply) => {
+      const recurso = resources.buscarGlobal(request.params.global_id);
+
+      if (!recurso) {
+        return reply.code(404).send({
+          detail: "Recurso não encontrado",
+        });
+      }
+
+      const ultimo = commandHistory.ultimo(
+        recurso.device_id,
+        recurso.recurso_id,
+      );
+
+      const pendente =
+        ultimo && ["pending", "uncertain"].includes(ultimo.status);
+
+      return {
+        global_id: recurso.global_id,
+        device_id: recurso.device_id,
+        recurso_id: recurso.recurso_id,
+
+        reported: recurso.reported_json
+          ? JSON.parse(recurso.reported_json)
+          : null,
+        reported_at: recurso.reported_at,
+
+        desired: pendente
+          ? {
+              command_id: ultimo.id,
+              command: ultimo.command,
+              estado: ultimo.desired_state,
+              status: ultimo.status,
+            }
+          : null,
+
+        last_command: ultimo,
+      };
     },
   );
 
@@ -166,10 +232,76 @@ export default async function resourcesRoutes(
         return reply.code(erro.statusCode).send({
           ok: false,
           confirmed: false,
+          command_id: erro.command_id ?? null,
+          status: erro.execution_status ?? null,
           code: erro.code,
           detail: erro.message,
         });
       }
+    },
+  );
+
+  // GET /api/resources/:global_id/commands
+  app.get(
+    "/api/resources/:global_id/commands",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["global_id"],
+          properties: { global_id: globalIdSchema },
+        },
+        querystring: {
+          type: "object",
+          properties: {
+            limit: {
+              type: "integer",
+              minimum: 1,
+              maximum: 100,
+              default: 20,
+            },
+          },
+        },
+      },
+    },
+    (request, reply) => {
+      const recurso = resources.buscarGlobal(request.params.global_id);
+
+      if (!recurso) {
+        return reply.code(404).send({
+          detail: "Recurso não encontrado",
+        });
+      }
+
+      return commandHistory.listar(
+        recurso.device_id,
+        recurso.recurso_id,
+        request.query.limit,
+      );
+    },
+  );
+
+  // GET /api/commands/:id
+  app.get(
+    "/api/commands/:id",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["id"],
+          properties: {
+            id: { type: "integer", minimum: 1 },
+          },
+        },
+      },
+    },
+    (request, reply) => {
+      return (
+        commandHistory.buscar(request.params.id) ??
+        reply.code(404).send({
+          detail: "Comando não encontrado",
+        })
+      );
     },
   );
 

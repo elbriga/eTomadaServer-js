@@ -1,6 +1,7 @@
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { consultarSnapshot, NodeClientError } from "../devices/nodeClient.js";
+import { criarCommandRepository } from "../repositories/commandRepository.js";
 
 export function criarNodeMonitor({
   db,
@@ -13,6 +14,7 @@ export function criarNodeMonitor({
 }) {
   const nodes = criarNodeRepository(db);
   const resources = criarResourceRepository(db);
+  const commands = criarCommandRepository(db);
   const estados = new Map();
   const pendentes = new Map();
 
@@ -98,6 +100,17 @@ export function criarNodeMonitor({
     // Descobre/atualiza metadados dos recursos locais do nodo.
     // Não grava estados físicos nesta etapa.
     resources.descobrir(deviceId, resultado.snapshot.recursos);
+
+    for (const recurso of resultado.snapshot.recursos ?? []) {
+      if (recurso.remoto === true) continue;
+
+      commands.reconciliar(
+        deviceId,
+        recurso.id,
+        recurso.device?.estado,
+        "poll",
+      );
+    }
 
     const anterior = s.status;
     s.status = "online";

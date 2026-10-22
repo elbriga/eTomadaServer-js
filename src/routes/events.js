@@ -1,7 +1,9 @@
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
+import { criarCommandRepository } from "../repositories/commandRepository.js";
 
 export default async function eventsRoutes(app, { db, monitor }) {
   const resources = criarResourceRepository(db);
+  const commands = criarCommandRepository(db);
 
   const insertEvent = db.prepare(`
     INSERT INTO events (
@@ -71,7 +73,10 @@ export default async function eventsRoutes(app, { db, monitor }) {
       }
 
       // Impede que um GET antigo sobrescreva o evento.
-      if (atualizado) monitor.receberEvento(event.origem);
+      if (atualizado) {
+        monitor.receberEvento(event.origem);
+        commands.reconciliar(event.origem, event.id, device.estado, "event");
+      }
 
       return { ok: true, id };
     },
