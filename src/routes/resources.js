@@ -1,7 +1,22 @@
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
+import {
+  criarResourceService,
+  ResourceCommandError,
+} from "../services/resourceService.js";
+import { NodeClientError } from "../devices/nodeClient.js";
 
-export default async function resourcesRoutes(app, { db, monitor }) {
+export default async function resourcesRoutes(
+  app,
+  { db, monitor, permitirComandos = false, enviarComando },
+) {
   const resources = criarResourceRepository(db);
+  const comandos = criarResourceService({
+    db,
+    monitor,
+    log: app.log,
+    permitirComandos,
+    enviarComando,
+  });
 
   // POST /api/snapshot
   app.post(
@@ -97,6 +112,64 @@ export default async function resourcesRoutes(app, { db, monitor }) {
           detail: "Recurso não encontrado",
         })
       );
+    },
+  );
+
+  // POST /api/resources/:global_id/commands
+  app.post(
+    "/api/resources/:global_id/commands",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["global_id"],
+          properties: { global_id: globalIdSchema },
+        },
+        body: {
+          type: "object",
+          required: ["command"],
+          additionalProperties: false,
+          properties: {
+            command: {
+              type: "string",
+              enum: ["ON", "OFF"],
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        return await comandos.executar(
+          request.params.global_id,
+          request.body.command,
+        );
+      } catch (erro) {
+        if (
+          !(erro instanceof ResourceCommandError) &&
+          !(erro instanceof NodeClientError)
+        ) {
+          throw erro;
+        }
+
+        app.log.warn(
+          {
+            module: "COMMAND",
+            global_id: request.params.global_id,
+            command: request.body.command,
+            code: erro.code,
+            erro: erro.message,
+          },
+          "Comando não confirmado",
+        );
+
+        return reply.code(erro.statusCode).send({
+          ok: false,
+          confirmed: false,
+          code: erro.code,
+          detail: erro.message,
+        });
+      }
     },
   );
 

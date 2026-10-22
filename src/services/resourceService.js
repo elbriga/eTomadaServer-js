@@ -1,0 +1,187 @@
+import { criarNodeRepository } from "../repositories/nodeRepository.js";
+import { criarResourceRepository } from "../repositories/resourceRepository.js";
+import { enviarComandoRele } from "../devices/nodeClient.js";
+
+export class ResourceCommandError extends Error {
+  constructor(message, code, statusCode = 409) {
+    super(message);
+    this.name = "ResourceCommandError";
+    this.code = code;
+    this.statusCode = statusCode;
+  }
+}
+
+function normalizarEstado(valor) {
+  if (valor === true || valor === 1) return true;
+  if (valor === false || valor === 0) return false;
+  return null;
+}
+
+export function criarResourceService({
+  db,
+  monitor,
+  log,
+  permitirComandos = false,
+  enviarComando = enviarComandoRele,
+}) {
+  const nodes = criarNodeRepository(db);
+  const resources = criarResourceRepository(db);
+  const executando = new Set();
+
+  async function executar(globalId, comando) {
+    const recurso = resources.buscarGlobal(globalId);
+
+    if (!recurso) {
+      throw new ResourceCommandError(
+        `Recurso ${globalId} não encontrado`,
+        "RESOURCE_NOT_FOUND",
+        404,
+      );
+    }
+
+    if (recurso.tipo !== "RELE") {
+      throw new ResourceCommandError(
+        `Tipo ${recurso.tipo} não suporta este comando`,
+        "UNSUPPORTED_RESOURCE",
+        422,
+      );
+    }
+
+    if (comando !== "ON" && comando !== "OFF") {
+      throw new ResourceCommandError(
+        `Comando inválido: ${comando}`,
+        "INVALID_COMMAND",
+        400,
+      );
+    }
+
+    if (!permitirComandos) {
+      throw new ResourceCommandError(
+        "Comandos físicos desabilitados neste ambiente",
+        "COMMANDS_DISABLED",
+        403,
+      );
+    }
+
+    const node = nodes.buscar(recurso.device_id);
+
+    if (!node || !node.enabled) {
+      throw new ResourceCommandError(
+        `Nodo ${recurso.device_id} indisponível ou desabilitado`,
+        "NODE_DISABLED",
+        409,
+      );
+    }
+
+    if (node.api !== "Full" && node.api !== "Lite") {
+      throw new ResourceCommandError(
+        `API do nodo ${node.device_id} desconhecida`,
+        "UNSUPPORTED_API",
+        409,
+      );
+    }
+
+    // Chave física: evita comandos simultâneos ao mesmo relé.
+    const chave = `${recurso.device_id}/${recurso.recurso_id}`;
+
+    if (executando.has(chave)) {
+      throw new ResourceCommandError(
+        `Comando já em andamento para ${chave}`,
+        "COMMAND_IN_PROGRESS",
+        409,
+      );
+    }
+
+    executando.add(chave);
+
+    try {
+      const resposta = await enviarComando({
+        deviceId: node.device_id,
+        recursoId: recurso.recurso_id,
+        api: node.api,
+        comando,
+      });
+
+      const retornado = resposta.recurso;
+
+      if (
+        !retornado ||
+        retornado.id !== recurso.recurso_id ||
+        retornado.tipo !== "RELE"
+      ) {
+        throw new ResourceCommandError(
+          "Resposta sem confirmação do recurso solicitado",
+          "NO_CONFIRMATION",
+          502,
+        );
+      }
+
+      const estado = normalizarEstado(retornado.device?.estado);
+
+      if (estado === null) {
+        throw new ResourceCommandError(
+          "Resposta sem estado confirmado",
+          "NO_CONFIRMATION",
+          502,
+        );
+      }
+
+      // A resposta contém uma observação real do hardware.
+      // Persiste inclusive quando o estado é diferente do solicitado.
+      const atualizado = resources.aplicarEvento(
+        recurso.device_id,
+        recurso.recurso_id,
+        { estado },
+      );
+
+      if (!atualizado) {
+        throw new ResourceCommandError(
+          "Recurso removido durante o comando",
+          "RESOURCE_CHANGED",
+          409,
+        );
+      }
+
+      // Invalida snapshots GET anteriores à confirmação.
+      monitor.receberEvento(recurso.device_id);
+
+      const esperado = comando === "ON";
+
+      if (estado !== esperado) {
+        throw new ResourceCommandError(
+          `Estado divergente: solicitado ${comando}, confirmado ${estado ? "ON" : "OFF"}`,
+          "STATE_MISMATCH",
+          409,
+        );
+      }
+
+      log.info(
+        {
+          module: "COMMAND",
+          device_id: node.device_id,
+          recurso_id: recurso.recurso_id,
+          global_id: recurso.global_id,
+          comando,
+          duracao_ms: resposta.duracao_ms,
+        },
+        "Comando confirmado",
+      );
+
+      return {
+        ok: true,
+        confirmed: true,
+        global_id: recurso.global_id,
+        device_id: node.device_id,
+        recurso_id: recurso.recurso_id,
+        command: comando,
+        estado,
+        duracao_ms: resposta.duracao_ms,
+        msg: resposta.msg ?? null,
+      };
+    } finally {
+      executando.delete(chave);
+    }
+  }
+
+  return { executar };
+}
