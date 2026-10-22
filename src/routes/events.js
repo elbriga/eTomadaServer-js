@@ -1,4 +1,8 @@
-export default async function eventsRoutes(app, { db }) {
+import { criarResourceRepository } from "../repositories/resourceRepository.js";
+
+export default async function eventsRoutes(app, { db, monitor }) {
+  const resources = criarResourceRepository(db);
+
   const insertEvent = db.prepare(`
     INSERT INTO events (
       timestamp, device_id, recurso_id, evento,
@@ -38,22 +42,38 @@ export default async function eventsRoutes(app, { db }) {
 
       const timestamp = Math.floor(Date.now() / 1000);
 
-      const result = insertEvent.run(
-        timestamp,
-        event.origem,
-        event.id,
-        event.evento,
-        request.ip,
-        device.valor ?? null,
-        device.status ?? "",
-        device.estado ?? null,
-        device.estadoFan ?? null,
-      );
+      let id;
+      let atualizado = false;
 
-      return {
-        ok: true,
-        id: Number(result.lastInsertRowid),
-      };
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        const result = insertEvent.run(
+          timestamp,
+          event.origem,
+          event.id,
+          event.evento,
+          request.ip,
+          device.valor ?? null,
+          device.status ?? "",
+          device.estado ?? null,
+          device.estadoFan ?? null,
+        );
+
+        id = Number(result.lastInsertRowid);
+
+        // Atualização parcial, sem criar recursos desconhecidos.
+        atualizado = resources.aplicarEvento(event.origem, event.id, device);
+
+        db.exec("COMMIT");
+      } catch (erro) {
+        db.exec("ROLLBACK");
+        throw erro;
+      }
+
+      // Impede que um GET antigo sobrescreva o evento.
+      if (atualizado) monitor.receberEvento(event.origem);
+
+      return { ok: true, id };
     },
   );
 

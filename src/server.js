@@ -84,7 +84,7 @@ logsServidor.configurar(criarLogRepository(db, notificarLog));
 
 // ==== APIs ====
 await app.register(logsRoutes, { db, notificarLog });
-await app.register(eventsRoutes, { db });
+await app.register(eventsRoutes, { db, monitor });
 await app.register(resourcesRoutes, { db, monitor });
 await app.register(screensRoutes, { db });
 await app.register(nodesRoutes, { db, monitor });

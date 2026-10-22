@@ -67,8 +67,8 @@ export function criarNodeMonitor({
     try {
       resultado = await consultarSnapshot(deviceId, timeoutMs);
     } catch (erro) {
-      // Um POST mais recente já confirmou o nodo online.
-      // Não deixar um GET antigo alterar esse estado.
+      // Uma atualização espontânea mais recente invalida este GET
+      // Não deixar um GET antigo alterar esse estado
       if (s.revisaoPush !== revisaoInicial || estados.get(deviceId) !== s) {
         throw erro;
       }
@@ -90,7 +90,7 @@ export function criarNodeMonitor({
       throw erro;
     }
 
-    // O POST recebido durante o GET tem prioridade.
+    // POSTs de snapshot e eventos recebidos durante o GET têm prioridade
     if (s.revisaoPush !== revisaoInicial || estados.get(deviceId) !== s) {
       return { ...resultado, desatualizado: true };
     }
@@ -252,9 +252,22 @@ export function criarNodeMonitor({
     return true;
   }
 
+  function receberEvento(deviceId) {
+    const node = nodes.buscar(deviceId);
+    if (!node) return false;
+
+    const s = estados.get(node.device_id);
+
+    // Invalida um GET que começou antes do evento.
+    if (s) s.revisaoPush++;
+
+    return true;
+  }
+
   return {
     consultar,
     receberSnapshot,
+    receberEvento,
 
     listarStatus() {
       return nodes.listar().map((node) => visualizar(node));

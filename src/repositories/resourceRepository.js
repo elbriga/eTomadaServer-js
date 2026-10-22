@@ -1,3 +1,28 @@
+const CAMPOS_ESTADO = ["estado", "estadoFan", "valor", "status"];
+const CHECKPOINT_ESTADO = 300; // segundos
+
+function extrairEstado(device) {
+  if (!device || typeof device !== "object" || Array.isArray(device)) return {};
+
+  const estado = {};
+
+  for (const campo of CAMPOS_ESTADO) {
+    const valor = device[campo];
+    if (valor == null) continue;
+
+    if (campo === "estado") {
+      if (typeof valor === "boolean") estado[campo] = valor;
+      else if (valor === 0 || valor === 1) estado[campo] = Boolean(valor);
+    } else if (campo === "status") {
+      if (typeof valor === "string") estado[campo] = valor;
+    } else if (typeof valor === "number" && Number.isFinite(valor)) {
+      estado[campo] = valor;
+    }
+  }
+
+  return estado;
+}
+
 export function criarResourceRepository(db) {
   const campos = `
     device_id, recurso_id, nome, tipo, updated_at,
@@ -40,6 +65,24 @@ export function criarResourceRepository(db) {
     WHERE device_id = ? AND recurso_id = ?
   `);
 
+  const selecionarEstado = db.prepare(`
+    SELECT reported_json FROM resources
+    WHERE device_id = ? COLLATE NOCASE AND recurso_id = ?
+  `);
+
+  const gravarEstado = db.prepare(`
+    UPDATE resources SET
+      reported_json = ?,
+      reported_at = unixepoch()
+    WHERE device_id = ? COLLATE NOCASE AND recurso_id = ?
+      AND (
+        reported_json IS NULL
+        OR reported_json <> ?
+        OR reported_at IS NULL
+        OR reported_at <= unixepoch() - ?
+      )
+  `);
+
   return {
     listar(deviceId = null) {
       return deviceId === null ? listarTodos.all() : listarNodo.all(deviceId);
@@ -56,6 +99,7 @@ export function criarResourceRepository(db) {
     descobrir(deviceId, recursos) {
       if (!Array.isArray(recursos) || recursos.length === 0) return 0;
 
+      const id = deviceId.trim().toUpperCase();
       let total = 0;
       db.exec("BEGIN IMMEDIATE");
 
@@ -75,7 +119,16 @@ export function criarResourceRepository(db) {
           const tipo =
             typeof recurso.tipo === "string" ? recurso.tipo.slice(0, 16) : "";
 
-          upsert.run(deviceId, recurso.id, nome, tipo);
+          upsert.run(id, recurso.id, nome, tipo);
+
+          // Atualiza o estado reportado pelo snapshot.
+          const reportado = extrairEstado(recurso.device);
+
+          if (Object.keys(reportado).length > 0) {
+            const json = JSON.stringify(reportado);
+            gravarEstado.run(json, id, recurso.id, json, CHECKPOINT_ESTADO);
+          }
+
           total++;
         }
 
@@ -86,6 +139,37 @@ export function criarResourceRepository(db) {
       }
 
       return total;
+    },
+
+    aplicarEvento(deviceId, recursoId, device) {
+      const alteracoes = extrairEstado(device);
+
+      // Eventos sem estado reportado continuam no histórico,
+      // mas não alteram o estado central.
+      if (Object.keys(alteracoes).length === 0) return false;
+
+      const atual = selecionarEstado.get(deviceId, recursoId);
+      if (!atual) return false;
+
+      let anterior = {};
+
+      if (atual.reported_json) {
+        try {
+          const salvo = JSON.parse(atual.reported_json);
+
+          if (salvo && typeof salvo === "object" && !Array.isArray(salvo))
+            anterior = salvo;
+        } catch {
+          anterior = {};
+        }
+      }
+
+      // O evento modifica somente os campos informados.
+      const json = JSON.stringify({ ...anterior, ...alteracoes });
+
+      gravarEstado.run(json, deviceId, recursoId, json, CHECKPOINT_ESTADO);
+
+      return true;
     },
 
     atualizar(deviceId, recursoId, alteracoes) {
