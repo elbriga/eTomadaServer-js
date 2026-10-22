@@ -16,6 +16,17 @@ fi
 
 echo "=== eTomadaServer UPGRADE: $ENV ==="
 
+echo "=== STOP $SERVICE ==="
+"${SUDO[@]}" systemctl stop "$SERVICE"
+
+echo "=== BACKUP DB ==="
+source /etc/etomada-server/${ENV}.env
+if [ -f "$DB_PATH" ]; then
+    cp $DB_PATH $DB_PATH.bak
+else
+    echo "???????????????? DABATASE [$DB_PATH] nao encontrada!"
+fi
+
 echo "=== GIT PULL ==="
 COMMIT_ANTERIOR=$(git rev-parse HEAD)
 git pull --ff-only
@@ -31,8 +42,8 @@ fi
 echo "=== SYSTEMD RELOAD ==="
 "${SUDO[@]}" systemctl daemon-reload
 
-echo "=== RESTART $SERVICE ==="
-"${SUDO[@]}" systemctl restart "$SERVICE"
+echo "=== START $SERVICE ==="
+"${SUDO[@]}" systemctl start "$SERVICE"
 
 echo "=== STATUS ==="
 "${SUDO[@]}" systemctl --no-pager --full status "$SERVICE"
