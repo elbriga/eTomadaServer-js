@@ -53,7 +53,7 @@ if [[ -z "$PORT" ]]; then
 fi
 
 # Aguarda o Node.js iniciar
-sleep 2
+sleep 4
 
 # Registra o upgrade pela API de logs
 printf -v PAYLOAD \
