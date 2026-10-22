@@ -29,6 +29,23 @@ export function criarNodeRepository(db) {
     DELETE FROM nodes WHERE device_id = ?
   `);
 
+  const updateSnapshot = db.prepare(`
+    UPDATE nodes SET
+      api = COALESCE(?, api),
+      device_model = COALESCE(?, device_model),
+      device_board = COALESCE(?, device_board),
+      fw_version = COALESCE(?, fw_version),
+      mac = COALESCE(?, mac),
+      ssid = COALESCE(?, ssid),
+      last_seen_at = unixepoch(),
+      last_snapshot_at = unixepoch(),
+      snapshot_json = ?
+    WHERE device_id = ?
+  `);
+
+  const texto = (valor) =>
+    typeof valor === "string" && valor.trim() ? valor.trim() : null;
+
   const formatar = (row) =>
     row ? { ...row, enabled: row.enabled === 1 } : null;
 
@@ -62,6 +79,21 @@ export function criarNodeRepository(db) {
 
     excluir(deviceId) {
       return remove.run(deviceId).changes > 0;
+    },
+
+    salvarSnapshot(deviceId, snapshot) {
+      const result = updateSnapshot.run(
+        texto(snapshot.api),
+        texto(snapshot.device_model),
+        texto(snapshot.device_board),
+        texto(snapshot.fw_version),
+        texto(snapshot.mac),
+        texto(snapshot.ssid),
+        JSON.stringify(snapshot),
+        deviceId,
+      );
+
+      return result.changes > 0;
     },
   };
 }

@@ -1,4 +1,5 @@
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
+import { consultarSnapshot, NodeClientError } from "../devices/nodeClient.js";
 
 const deviceIdSchema = {
   type: "string",
@@ -118,6 +119,57 @@ export default async function nodesRoutes(app, { db }) {
       }
 
       return reply.code(204).send();
+    },
+  );
+
+  // GET /api/nodes/:device_id/snapshot
+  app.get(
+    "/api/nodes/:device_id/snapshot",
+    { schema: { params: paramsSchema } },
+    async (request, reply) => {
+      const node = nodes.buscar(request.params.device_id);
+
+      if (!node) {
+        return reply.code(404).send({
+          detail: "Nodo não cadastrado",
+        });
+      }
+
+      try {
+        const resultado = await consultarSnapshot(node.device_id);
+
+        if (!nodes.salvarSnapshot(node.device_id, resultado.snapshot)) {
+          return reply.code(404).send({
+            detail: "Cadastro removido durante a consulta",
+          });
+        }
+
+        return {
+          ok: true,
+          device_id: node.device_id,
+          hostname: resultado.hostname,
+          duracao_ms: resultado.duracao_ms,
+          snapshot: resultado.snapshot,
+        };
+      } catch (erro) {
+        if (!(erro instanceof NodeClientError)) throw erro;
+
+        app.log.warn(
+          {
+            device_id: node.device_id,
+            code: erro.code,
+            message: erro.message,
+          },
+          "Falha ao consultar snapshot",
+        );
+
+        return reply.code(erro.statusCode).send({
+          ok: false,
+          device_id: node.device_id,
+          code: erro.code,
+          detail: erro.message,
+        });
+      }
     },
   );
 }
