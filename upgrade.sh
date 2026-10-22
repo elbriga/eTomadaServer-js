@@ -2,12 +2,7 @@
 #!/bin/bash
 set -euo pipefail
 
-if [[ $# -ne 1 || ! "$1" =~ ^(dev|prod)$ ]]; then
-    echo "Uso: $0 <dev|prod>"
-    exit 1
-fi
-
-ENV="$1"
+ENV="prod"
 SERVICE="etomada@${ENV}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
