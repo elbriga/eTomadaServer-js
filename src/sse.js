@@ -26,6 +26,10 @@ export function registrarSse(app) {
     });
   });
 
+  app.addHook("preClose", async () => {
+    for (const res of clients) res.end();
+  });
+
   app.addHook("onClose", async () => {
     for (const res of clients) res.destroy();
 

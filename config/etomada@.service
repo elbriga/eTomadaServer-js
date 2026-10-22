@@ -1,0 +1,33 @@
+[Unit]
+Description=eTomadaServer %i (Node.js)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+User=etomada-%i
+Group=etomada-%i
+
+WorkingDirectory=/opt/etomada-server
+EnvironmentFile=/etc/etomada-server/%i.env
+
+ExecStart=/usr/local/bin/node /opt/etomada-server/src/server.js
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=etomada-%i
+
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/etomada-server/%i
+
+[Install]
+WantedBy=multi-user.target

@@ -72,6 +72,25 @@ await app.register(eventsRoutes, { db });
 await app.register(resourcesRoutes, { db });
 await app.register(screensRoutes, { db });
 
+let encerrando = false;
+
+async function encerrar(signal) {
+  if (encerrando) return;
+  encerrando = true;
+
+  app.log.info({ signal }, "Encerrando eTomadaServer");
+
+  try {
+    await app.close();
+  } catch (err) {
+    app.log.error(err);
+    process.exitCode = 1;
+  }
+}
+
+process.on("SIGTERM", () => void encerrar("SIGTERM"));
+process.on("SIGINT", () => void encerrar("SIGINT"));
+
 try {
   await app.listen({ host, port });
 } catch (err) {

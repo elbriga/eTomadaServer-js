@@ -14,13 +14,14 @@ export function abrirBanco() {
   if (!process.env.DB_PATH) throw new Error("DB_PATH não configurado");
 
   const arquivo = path.resolve(process.env.DB_PATH);
+  const devDir = path.resolve(process.env.DEV_DATA_DIR ?? "data/dev");
 
   // DEV só pode acessar bancos dentro de data/dev
   if (process.env.ETOMADA_ENV === "dev") {
-    const devDir = path.resolve("data/dev") + path.sep;
-
-    if (!arquivo.startsWith(devDir))
-      throw new Error("Banco DEV fora do diretório permitido");
+    if (!arquivo.startsWith(devDir + path.sep))
+      throw new Error(
+        "Banco DEV [" + arquivo + "] fora do diretório permitido",
+      );
   }
 
   if (!existsSync(arquivo)) throw new Error(`Banco inexistente: ${arquivo}`);
