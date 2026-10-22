@@ -13,6 +13,7 @@ import nodesRoutes from "./routes/nodes.js";
 import { criarNodeMonitor } from "./services/nodeMonitor.js";
 import { criarLogRepository } from "./repositories/logRepository.js";
 import { criarServerLogStream } from "./services/serverLogStream.js";
+import groupsRoutes from "./routes/groups.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -93,6 +94,7 @@ await app.register(resourcesRoutes, {
 });
 await app.register(screensRoutes, { db });
 await app.register(nodesRoutes, { db, monitor });
+await app.register(groupsRoutes, { db });
 
 let encerrando = false;
 

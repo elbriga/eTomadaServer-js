@@ -1,5 +1,5 @@
 // Versão 1: esquema legado + cadastro centralizado de nodos.
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const COLUNAS = {
   logs: [
@@ -69,6 +69,8 @@ const COLUNAS = {
     "created_at",
     "finished_at",
   ],
+  groups: ["group_id", "nome", "descricao", "created_at", "updated_at"],
+  group_resources: ["group_id", "device_id", "recurso_id"],
 };
 
 export const TABELAS = Object.keys(COLUNAS);
@@ -81,6 +83,7 @@ const INDICES = {
   idx_events_timestamp: ["timestamp"],
   idx_resources_global_id: ["global_id"],
   idx_resource_commands_resource: ["device_id", "recurso_id", "id"],
+  idx_group_resources_resource: ["device_id", "recurso_id"],
 };
 
 const migracoes = {
@@ -205,6 +208,35 @@ const migracoes = {
 
       CREATE INDEX idx_resource_commands_resource
         ON resource_commands(device_id, recurso_id, id);
+    `);
+  },
+
+  4(db) {
+    db.exec(`
+      CREATE TABLE groups (
+        group_id TEXT PRIMARY KEY COLLATE NOCASE,
+        nome TEXT NOT NULL DEFAULT '',
+        descricao TEXT NOT NULL DEFAULT '',
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+
+      CREATE TABLE group_resources (
+        group_id TEXT NOT NULL COLLATE NOCASE,
+        device_id TEXT NOT NULL,
+        recurso_id TEXT NOT NULL,
+
+        PRIMARY KEY (group_id, device_id, recurso_id),
+
+        FOREIGN KEY (group_id)
+          REFERENCES groups(group_id) ON DELETE CASCADE,
+
+        FOREIGN KEY (device_id, recurso_id)
+          REFERENCES resources(device_id, recurso_id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX idx_group_resources_resource
+        ON group_resources(device_id, recurso_id);
     `);
   },
 };

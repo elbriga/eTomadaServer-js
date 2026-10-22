@@ -27,6 +27,7 @@ export function abrirBanco() {
   });
 
   try {
+    db.exec("PRAGMA foreign_keys = ON");
     inicializarSchema(db);
     return db;
   } catch (err) {
