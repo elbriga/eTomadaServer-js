@@ -8,6 +8,7 @@ import logsRoutes from "./routes/logs.js";
 import eventsRoutes from "./routes/events.js";
 import resourcesRoutes from "./routes/resources.js";
 import screensRoutes from "./routes/screens.js";
+import { registrarAuth } from "./auth.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -24,6 +25,8 @@ if (env === "dev" && process.env.ENABLE_PHYSICAL_COMMANDS !== "false")
 const app = Fastify({
   logger: true,
 });
+// Deve ser registrado ANTES das rotas e dos plugins HTTP.
+registrarAuth(app);
 
 const db = abrirBanco();
 app.addHook("onClose", async () => {
