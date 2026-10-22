@@ -1,9 +1,13 @@
 import Fastify from "fastify";
-import { abrirBanco, TABELAS } from "./db.js";
 import fastifyStatic from "@fastify/static";
 import { fileURLToPath } from "node:url";
+
+import { abrirBanco, TABELAS } from "./db.js";
 import { registrarSse } from "./sse.js";
 import logsRoutes from "./routes/logs.js";
+import eventsRoutes from "./routes/events.js";
+import resourcesRoutes from "./routes/resources.js";
+import screensRoutes from "./routes/screens.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -44,30 +48,26 @@ app.get("/health/db", async () => {
   return { ok: true, tables };
 });
 
-// Frontend
+// ==== Frontend ====
 const publicDir = fileURLToPath(new URL("../public/", import.meta.url));
-
 await app.register(fastifyStatic, {
   root: publicDir,
   prefix: "/",
 });
-
 app.get("/", (request, reply) => {
   return reply.sendFile("index.html");
 });
-
 app.get("/historico", (request, reply) => {
   return reply.sendFile("historico.html");
 });
-
 // SSE
 const notificarLog = registrarSse(app);
 
-// APIs
-await app.register(logsRoutes, {
-  db,
-  notificarLog,
-});
+// ==== APIs ====
+await app.register(logsRoutes, { db, notificarLog });
+await app.register(eventsRoutes, { db });
+await app.register(resourcesRoutes, { db });
+await app.register(screensRoutes, { db });
 
 try {
   await app.listen({ host, port });
