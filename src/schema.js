@@ -1,5 +1,5 @@
 // Versão 1: esquema legado + cadastro centralizado de nodos.
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const COLUNAS = {
   logs: [
@@ -25,7 +25,18 @@ const COLUNAS = {
     "estado",
     "estado2",
   ],
-  resources: ["device_id", "recurso_id", "nome", "tipo", "updated_at"],
+  resources: [
+    "device_id",
+    "recurso_id",
+    "nome",
+    "tipo",
+    "updated_at",
+    "global_id",
+    "nome_configurado",
+    "descricao",
+    "reported_json",
+    "reported_at",
+  ],
   history_screens: ["name", "charts_json"],
   nodes: [
     "device_id",
@@ -53,6 +64,7 @@ const INDICES = {
   idx_events_device: ["device_id"],
   idx_events_recurso: ["device_id", "recurso_id"],
   idx_events_timestamp: ["timestamp"],
+  idx_resources_global_id: ["global_id"],
 };
 
 const migracoes = {
@@ -140,6 +152,18 @@ const migracoes = {
     ]) {
       inserirNivel.run(id, nome, id);
     }
+  },
+  2(db) {
+    db.exec(`
+      ALTER TABLE resources ADD COLUMN global_id TEXT;
+      ALTER TABLE resources ADD COLUMN nome_configurado TEXT NOT NULL DEFAULT '';
+      ALTER TABLE resources ADD COLUMN descricao TEXT NOT NULL DEFAULT '';
+      ALTER TABLE resources ADD COLUMN reported_json TEXT;
+      ALTER TABLE resources ADD COLUMN reported_at INTEGER;
+
+      CREATE UNIQUE INDEX idx_resources_global_id
+        ON resources(global_id COLLATE NOCASE);
+    `);
   },
 };
 

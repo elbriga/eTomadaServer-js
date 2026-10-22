@@ -1,4 +1,5 @@
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
+import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { consultarSnapshot, NodeClientError } from "../devices/nodeClient.js";
 
 export function criarNodeMonitor({
@@ -11,6 +12,7 @@ export function criarNodeMonitor({
   checkpointMs = 300_000,
 }) {
   const nodes = criarNodeRepository(db);
+  const resources = criarResourceRepository(db);
   const estados = new Map();
   const pendentes = new Map();
 
@@ -92,6 +94,10 @@ export function criarNodeMonitor({
     if (s.revisaoPush !== revisaoInicial || estados.get(deviceId) !== s) {
       return { ...resultado, desatualizado: true };
     }
+
+    // Descobre/atualiza metadados dos recursos locais do nodo.
+    // Não grava estados físicos nesta etapa.
+    resources.descobrir(deviceId, resultado.snapshot.recursos);
 
     const anterior = s.status;
     s.status = "online";
