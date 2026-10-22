@@ -43,4 +43,37 @@ echo "=== STATUS ==="
 "${SUDO[@]}" systemctl --no-pager --full status "$SERVICE"
 
 COMMIT_ATUAL=$(git rev-parse HEAD)
-echo "=== UPGRADE DE [$COMMIT_ANTERIOR] para [$COMMIT_ATUAL] DE $ENV CONCLUIDO ==="
+MENSAGEM="UPGRADE de [$COMMIT_ANTERIOR] para [$COMMIT_ATUAL] de $ENV concluido"
+
+echo "=== $MENSAGEM ==="
+
+# Lê a porta configurada para o ambiente
+PORT=$("${SUDO[@]}" sed -nE \
+    's/^[[:space:]]*PORT=([0-9]+)[[:space:]]*$/\1/p' \
+    "/etc/etomada-server/${ENV}.env" | tail -n1)
+
+if [[ -z "$PORT" ]]; then
+    echo "ERRO: PORT nao encontrada no arquivo de ambiente"
+    exit 1
+fi
+
+# Aguarda o Node.js iniciar
+sleep 2
+
+# Registra o upgrade pela API de logs
+printf -v PAYLOAD \
+    '{"deviceID":"SERVER","level":10,"module":"UPGRADE","timestamp":%s,"message":"%s"}' \
+    "$(date +%s)" "$MENSAGEM"
+
+curl -fsS \
+    --retry 5 \
+    --retry-connrefused \
+    --retry-delay 1 \
+    --connect-timeout 2 \
+    --max-time 5 \
+    -X POST "http://10.0.0.1:${PORT}/api/log" \
+    -H "Content-Type: application/json" \
+    -d "$PAYLOAD"
+
+echo
+echo "=== LOG DE UPGRADE REGISTRADO ==="
