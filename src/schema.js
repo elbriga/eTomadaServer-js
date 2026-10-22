@@ -1,0 +1,197 @@
+// Versão 1: esquema legado + cadastro centralizado de nodos.
+export const SCHEMA_VERSION = 1;
+
+const COLUNAS = {
+  logs: [
+    "id",
+    "timestamp",
+    "device_id",
+    "ip",
+    "level",
+    "module",
+    "message",
+    "uptime",
+  ],
+  level: ["id", "nome"],
+  events: [
+    "id",
+    "timestamp",
+    "device_id",
+    "recurso_id",
+    "evento",
+    "ip",
+    "valor",
+    "status",
+    "estado",
+    "estado2",
+  ],
+  resources: ["device_id", "recurso_id", "nome", "tipo", "updated_at"],
+  history_screens: ["name", "charts_json"],
+  nodes: [
+    "device_id",
+    "nome",
+    "enabled",
+    "api",
+    "device_model",
+    "device_board",
+    "fw_version",
+    "mac",
+    "ssid",
+    "last_seen_at",
+    "last_snapshot_at",
+    "snapshot_json",
+    "created_at",
+    "updated_at",
+  ],
+};
+
+export const TABELAS = Object.keys(COLUNAS);
+
+const INDICES = {
+  idx_logs_device: ["device_id"],
+  idx_logs_timestamp: ["timestamp"],
+  idx_events_device: ["device_id"],
+  idx_events_recurso: ["device_id", "recurso_id"],
+  idx_events_timestamp: ["timestamp"],
+};
+
+const migracoes = {
+  1(db) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER,
+        device_id TEXT NOT NULL,
+        ip TEXT,
+        level INTEGER,
+        module TEXT,
+        message TEXT NOT NULL,
+        uptime INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_logs_device ON logs(device_id);
+      CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
+
+      CREATE TABLE IF NOT EXISTS level (
+        id INTEGER,
+        nome TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER NOT NULL,
+        device_id TEXT NOT NULL,
+        recurso_id TEXT NOT NULL,
+        evento TEXT NOT NULL,
+        ip TEXT,
+        valor REAL,
+        status TEXT,
+        estado INTEGER,
+        estado2 INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_events_device ON events(device_id);
+      CREATE INDEX IF NOT EXISTS idx_events_recurso ON events(device_id, recurso_id);
+      CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
+
+      CREATE TABLE IF NOT EXISTS resources (
+        device_id TEXT NOT NULL,
+        recurso_id TEXT NOT NULL,
+        nome TEXT NOT NULL DEFAULT '',
+        tipo TEXT NOT NULL DEFAULT '',
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (device_id, recurso_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS history_screens (
+        name TEXT PRIMARY KEY,
+        charts_json TEXT NOT NULL DEFAULT '[]'
+      );
+
+      CREATE TABLE IF NOT EXISTS nodes (
+        device_id TEXT NOT NULL PRIMARY KEY COLLATE NOCASE,
+        nome TEXT NOT NULL DEFAULT '',
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+        api TEXT,
+        device_model TEXT,
+        device_board TEXT,
+        fw_version TEXT,
+        mac TEXT,
+        ssid TEXT,
+        last_seen_at INTEGER,
+        last_snapshot_at INTEGER,
+        snapshot_json TEXT,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+    `);
+
+    // A tabela legada 'level' não tem UNIQUE(id). Evita duplicar linhas.
+    const inserirNivel = db.prepare(`
+      INSERT INTO level (id, nome)
+      SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM level WHERE id = ?)
+    `);
+    for (const [id, nome] of [
+      [0, "!OFF!!"],
+      [1, "!CRIT!"],
+      [5, "AVISO!"],
+      [10, "NORMAL"],
+      [50, "DEBUG0"],
+      [70, "DEBUG!"],
+      [100, "TESTE!"],
+    ]) {
+      inserirNivel.run(id, nome, id);
+    }
+  },
+};
+
+function conferirSchema(db) {
+  for (const [tabela, colunas] of Object.entries(COLUNAS)) {
+    const existentes = new Set(
+      db
+        .prepare(`PRAGMA table_info("${tabela}")`)
+        .all()
+        .map((col) => col.name),
+    );
+    for (const coluna of colunas) {
+      if (!existentes.has(coluna)) {
+        throw new Error(`Schema inválido: ${tabela}.${coluna} ausente`);
+      }
+    }
+  }
+
+  for (const [indice, colunas] of Object.entries(INDICES)) {
+    const existentes = db
+      .prepare(`PRAGMA index_info("${indice}")`)
+      .all()
+      .map((col) => col.name);
+    if (existentes.join(",") !== colunas.join(",")) {
+      throw new Error(`Schema inválido: índice ${indice} ausente ou diferente`);
+    }
+  }
+}
+
+export function inicializarSchema(db) {
+  const atual = db.prepare("PRAGMA user_version").get().user_version;
+  if (atual > SCHEMA_VERSION) {
+    throw new Error(
+      `Banco versão ${atual}, servidor suporta até ${SCHEMA_VERSION}`,
+    );
+  }
+
+  if (atual === SCHEMA_VERSION) {
+    conferirSchema(db);
+    return;
+  }
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (let versao = atual + 1; versao <= SCHEMA_VERSION; versao++) {
+      migracoes[versao](db);
+      db.exec(`PRAGMA user_version = ${versao}`);
+    }
+    conferirSchema(db);
+    db.exec("COMMIT");
+  } catch (erro) {
+    db.exec("ROLLBACK");
+    throw erro;
+  }
+}

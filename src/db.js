@@ -1,14 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 import { existsSync, realpathSync, lstatSync } from "node:fs";
 import path from "node:path";
+import { inicializarSchema } from "./schema.js";
 
-export const TABELAS = [
-  "logs",
-  "level",
-  "events",
-  "resources",
-  "history_screens",
-];
+export { TABELAS } from "./schema.js";
 
 export function abrirBanco() {
   if (!process.env.DB_PATH) throw new Error("DB_PATH não configurado");
@@ -32,17 +27,7 @@ export function abrirBanco() {
   });
 
   try {
-    const existentes = new Set(
-      db
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-        .all()
-        .map((row) => row.name),
-    );
-
-    for (const tabela of TABELAS) {
-      if (!existentes.has(tabela)) throw new Error(`Tabela ausente: ${tabela}`);
-    }
-
+    inicializarSchema(db);
     return db;
   } catch (err) {
     db.close();
