@@ -31,7 +31,7 @@ function getNodeColor(deviceId) {
 }
 
 async function carregarNodos() {
-  const response = await fetch("/api/nodes");
+  const response = await fetch("/api/logs/nodes");
   const nodes = await response.json();
   const select = document.getElementById("device");
   const valorAtual = select.value;

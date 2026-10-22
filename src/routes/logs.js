@@ -116,7 +116,7 @@ export default async function logsRoutes(app, { db, notificarLog }) {
     },
   );
 
-  // GET /api/nodes
+  // GET /api/logs/nodes
   const selectNodes = db.prepare(`
     SELECT
       device_id,
@@ -127,7 +127,7 @@ export default async function logsRoutes(app, { db, notificarLog }) {
     ORDER BY device_id
   `);
 
-  app.get("/api/nodes", () => {
+  app.get("/api/logs/nodes", () => {
     return selectNodes.all();
   });
 }

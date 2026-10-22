@@ -9,6 +9,7 @@ import eventsRoutes from "./routes/events.js";
 import resourcesRoutes from "./routes/resources.js";
 import screensRoutes from "./routes/screens.js";
 import { registrarAuth } from "./auth.js";
+import nodesRoutes from "./routes/nodes.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -71,6 +72,7 @@ await app.register(logsRoutes, { db, notificarLog });
 await app.register(eventsRoutes, { db });
 await app.register(resourcesRoutes, { db });
 await app.register(screensRoutes, { db });
+await app.register(nodesRoutes, { db });
 
 let encerrando = false;
 
