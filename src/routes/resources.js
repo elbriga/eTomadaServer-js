@@ -8,17 +8,25 @@ import { criarCommandRepository } from "../repositories/commandRepository.js";
 
 export default async function resourcesRoutes(
   app,
-  { db, monitor, permitirComandos = false, enviarComando },
+  {
+    db,
+    monitor,
+    permitirComandos = false,
+    enviarComando,
+    comandos: comandosCompartilhados,
+  },
 ) {
   const resources = criarResourceRepository(db);
   const commandHistory = criarCommandRepository(db);
-  const comandos = criarResourceService({
-    db,
-    monitor,
-    log: app.log,
-    permitirComandos,
-    enviarComando,
-  });
+  const comandos =
+    comandosCompartilhados ??
+    criarResourceService({
+      db,
+      monitor,
+      log: app.log,
+      permitirComandos,
+      enviarComando,
+    });
 
   // POST /api/snapshot
   app.post(

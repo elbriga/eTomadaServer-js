@@ -1,4 +1,8 @@
 import { criarGroupRepository } from "../repositories/groupRepository.js";
+import {
+  criarGroupService,
+  GroupCommandError,
+} from "../services/groupService.js";
 
 const groupIdSchema = {
   type: "string",
@@ -45,11 +49,57 @@ function erroAssociacao(reply, codigo) {
   });
 }
 
-export default async function groupsRoutes(app, { db }) {
+export default async function groupsRoutes(
+  app,
+  { db, comandos, permitirComandos = false },
+) {
   const groups = criarGroupRepository(db);
+  const groupCommands = criarGroupService({
+    groups,
+    comandos,
+    permitirComandos,
+    log: app.log,
+  });
 
   // GET /api/groups
   app.get("/api/groups", () => groups.listar());
+
+  // POST /api/groups/:group_id/commands
+  app.post(
+    "/api/groups/:group_id/commands",
+    {
+      schema: {
+        params: idParams,
+        body: {
+          type: "object",
+          required: ["command"],
+          additionalProperties: false,
+          properties: {
+            command: {
+              type: "string",
+              enum: ["ON", "OFF"],
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        return await groupCommands.executar(
+          request.params.group_id,
+          request.body.command,
+        );
+      } catch (erro) {
+        if (!(erro instanceof GroupCommandError)) throw erro;
+
+        return reply.code(erro.statusCode).send({
+          ok: false,
+          code: erro.code,
+          detail: erro.message,
+        });
+      }
+    },
+  );
 
   // POST /api/groups
   app.post(

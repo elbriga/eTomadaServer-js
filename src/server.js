@@ -14,6 +14,7 @@ import { criarNodeMonitor } from "./services/nodeMonitor.js";
 import { criarLogRepository } from "./repositories/logRepository.js";
 import { criarServerLogStream } from "./services/serverLogStream.js";
 import groupsRoutes from "./routes/groups.js";
+import { criarResourceService } from "./services/resourceService.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -40,6 +41,16 @@ registrarAuth(app);
 
 const db = abrirBanco();
 const monitor = criarNodeMonitor({ db, log: app.log });
+
+const permitirComandos =
+  env === "prod" && process.env.ENABLE_PHYSICAL_COMMANDS === "true";
+
+const comandos = criarResourceService({
+  db,
+  monitor,
+  log: app.log,
+  permitirComandos,
+});
 
 app.addHook("onClose", async () => {
   await monitor.parar();
@@ -89,12 +100,11 @@ await app.register(eventsRoutes, { db, monitor });
 await app.register(resourcesRoutes, {
   db,
   monitor,
-  permitirComandos:
-    env === "prod" && process.env.ENABLE_PHYSICAL_COMMANDS === "true",
+  comandos,
 });
 await app.register(screensRoutes, { db });
 await app.register(nodesRoutes, { db, monitor });
-await app.register(groupsRoutes, { db });
+await app.register(groupsRoutes, { db, comandos, permitirComandos });
 
 let encerrando = false;
 

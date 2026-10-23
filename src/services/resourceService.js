@@ -39,7 +39,7 @@ export function criarResourceService({
     );
   }
 
-  async function executar(globalId, comando) {
+  async function executar(globalId, comando, esperado = null) {
     const recurso = resources.buscarGlobal(globalId);
 
     if (!recurso) {
@@ -47,6 +47,18 @@ export function criarResourceService({
         `Recurso ${globalId} não encontrado`,
         "RESOURCE_NOT_FOUND",
         404,
+      );
+    }
+
+    if (
+      esperado &&
+      (recurso.device_id !== esperado.device_id ||
+        recurso.recurso_id !== esperado.recurso_id)
+    ) {
+      throw new ResourceCommandError(
+        `Identificação física alterada para ${globalId}`,
+        "RESOURCE_MOVED",
+        409,
       );
     }
 
