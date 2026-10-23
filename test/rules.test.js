@@ -262,3 +262,45 @@ test("API CRUD, escopos, revisões e validação", async () => {
     db.close();
   }
 });
+
+test("limite de 64 regras locais por nodo", async () => {
+  const db = prepararBanco();
+  const app = Fastify();
+
+  try {
+    await app.register(rulesRoutes, { db });
+    await app.ready();
+
+    for (let i = 0; i < 64; i++) {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/rules",
+        payload: {
+          ...localBody,
+          nome: `Regra ${i}`,
+          ativa: false,
+        },
+      });
+
+      assert.equal(res.statusCode, 201);
+    }
+
+    const excedente = await app.inject({
+      method: "POST",
+      url: "/api/rules",
+      payload: localBody,
+    });
+
+    assert.equal(excedente.statusCode, 409);
+
+    const lista = await app.inject({
+      method: "GET",
+      url: "/api/rules?escopo=LOCAL&device_id=GROW",
+    });
+
+    assert.equal(lista.json().length, 64);
+  } finally {
+    await app.close();
+    db.close();
+  }
+});
