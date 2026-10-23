@@ -467,3 +467,156 @@ test("boot: restaura divergências sem filtro de regra", async () => {
     db.close();
   }
 });
+
+test("TOGGLE alterna estado confirmado do destino", async () => {
+  const { db, rules } = preparar();
+  const resources = criarResourceRepository(db);
+  const chamadas = [];
+
+  try {
+    resources.aplicarEvento("GROW", "R1", { estado: false });
+
+    rules.criar({
+      nome: "Teste TOGGLE",
+      ativa: true,
+      escopo: "GLOBAL",
+      device_id: null,
+      quando: {
+        tipo: "EVENTO",
+        recurso: "BOTAO_GROW",
+        evento: "DUPCLICK",
+      },
+      acao: {
+        tipo: "ESTADO",
+        recurso: "LUZ_GROW",
+        comando: "TOGGLE",
+      },
+    });
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      log: { info() {}, warn() {}, error() {} },
+      comandos: {
+        async executar(recurso, comando) {
+          chamadas.push(comando);
+          resources.aplicarEvento("GROW", "R1", {
+            estado: comando === "ON",
+          });
+          return { command_id: chamadas.length };
+        },
+      },
+    });
+
+    const duploClique = {
+      ...evento,
+      evento: "DUPCLICK",
+    };
+
+    await engine.processarEvento(duploClique);
+    await engine.processarEvento(duploClique);
+
+    assert.deepEqual(chamadas, ["ON", "OFF"]);
+  } finally {
+    db.close();
+  }
+});
+
+test("FOLLOW usa o estado recebido no evento", async () => {
+  const { db, rules } = preparar();
+  const chamadas = [];
+
+  try {
+    rules.criar({
+      nome: "Teste FOLLOW",
+      ativa: true,
+      escopo: "GLOBAL",
+      device_id: null,
+      quando: {
+        tipo: "EVENTO",
+        recurso: "BOTAO_GROW",
+        evento: "DUPCLICK",
+      },
+      acao: {
+        tipo: "ESTADO",
+        recurso: "LUZ_GROW",
+        comando: "FOLLOW",
+      },
+    });
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      log: { info() {}, warn() {}, error() {} },
+      comandos: {
+        async executar(recurso, comando) {
+          chamadas.push({ recurso, comando });
+          return { command_id: chamadas.length };
+        },
+      },
+    });
+
+    await engine.processarEvento({
+      ...evento,
+      evento: "DUPCLICK",
+      device: { estado: 1 },
+    });
+
+    await engine.processarEvento({
+      ...evento,
+      evento: "DUPCLICK",
+      device: { estado: 0 },
+    });
+
+    assert.deepEqual(chamadas, [
+      { recurso: "LUZ_GROW", comando: "ON" },
+      { recurso: "LUZ_GROW", comando: "OFF" },
+    ]);
+  } finally {
+    db.close();
+  }
+});
+
+test("TOGGLE não executa com estado desconhecido", async () => {
+  const { db, rules } = preparar();
+  const chamadas = [];
+
+  try {
+    rules.criar({
+      nome: "Teste sem estado",
+      ativa: true,
+      escopo: "GLOBAL",
+      device_id: null,
+      quando: {
+        tipo: "EVENTO",
+        recurso: "BOTAO_GROW",
+        evento: "DUPCLICK",
+      },
+      acao: {
+        tipo: "ESTADO",
+        recurso: "LUZ_GROW",
+        comando: "TOGGLE",
+      },
+    });
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      log: { info() {}, warn() {}, error() {} },
+      comandos: {
+        async executar(...args) {
+          chamadas.push(args);
+        },
+      },
+    });
+
+    await engine.processarEvento({
+      ...evento,
+      evento: "DUPCLICK",
+    });
+
+    assert.deepEqual(chamadas, []);
+  } finally {
+    db.close();
+  }
+});

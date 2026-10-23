@@ -23,6 +23,7 @@ export function criarResourceService({
   monitor,
   log,
   permitirComandos = false,
+  nodoPermitido = null,
   enviarComando = enviarComandoRele,
 }) {
   const nodes = criarNodeRepository(db);
@@ -59,6 +60,18 @@ export function criarResourceService({
         `Identificação física alterada para ${globalId}`,
         "RESOURCE_MOVED",
         409,
+      );
+    }
+
+    // DEV físico > bloquear comandos destinados a outros nodos.
+    if (
+      nodoPermitido &&
+      recurso.device_id.toUpperCase() !== nodoPermitido.toUpperCase()
+    ) {
+      throw new ResourceCommandError(
+        `Nodo ${recurso.device_id} não autorizado neste ambiente`,
+        "NODE_NOT_ALLOWED",
+        403,
       );
     }
 

@@ -16,6 +16,8 @@ export function criarRuleEngine({
   const resources = criarResourceRepository(db);
   const bootsEmAndamento = new Set();
 
+  let filaAcoes = Promise.resolve();
+
   // Obtém o último valor confirmado de um recurso global.
   function obterValor(globalId) {
     const recurso = resources.buscarGlobal(globalId);
@@ -38,6 +40,29 @@ export function criarRuleEngine({
     if (estado?.estado === 0 || estado?.estado === 1) return estado.estado;
 
     return undefined;
+  }
+
+  // Obtém estado digital confirmado de um relé.
+  function obterEstadoRele(globalId) {
+    const recurso = resources.buscarGlobal(globalId);
+
+    if (
+      recurso?.tipo !== "RELE" ||
+      !recurso.reported_json ||
+      !recurso.reported_at
+    )
+      return null;
+
+    try {
+      const estado = JSON.parse(recurso.reported_json).estado;
+
+      if (estado === true || estado === 1) return 1;
+      if (estado === false || estado === 0) return 0;
+    } catch {
+      // Estado inválido ou indisponível.
+    }
+
+    return null;
   }
 
   function obterValores(regras) {
@@ -77,7 +102,7 @@ export function criarRuleEngine({
     return avaliarRegrasGlobais(regras, evento, valores);
   }
 
-  async function registrarAcoes(acoes, origem) {
+  async function executarAcoes(acoes, origem, valoresEvento = {}) {
     for (const plano of acoes) {
       const { tipo, recurso, comando } = plano.acao;
 
@@ -88,22 +113,7 @@ export function criarRuleEngine({
         acao: plano.acao,
       };
 
-      if (modo !== "execute") {
-        log.info(
-          contexto,
-          `[SIMULACAO] Regra #${plano.regra_id} ` +
-            `disparada por ${origem}: ${JSON.stringify(plano.acao)}`,
-        );
-        continue;
-      }
-
-      // Executor físico > aceitar ações ON/OFF de qualquer regra global
-      if (tipo !== "ESTADO" || !["ON", "OFF"].includes(comando) || !comandos) {
-        log.warn(contexto, "Ação ainda não suportada pelo executor");
-        continue;
-      }
-
-      // A regra pode ter sido editada entre avaliação e execução.
+      // Confirma que a regra ainda existe na mesma revisão.
       const atual = rules.buscar(plano.regra_id);
 
       if (
@@ -115,23 +125,109 @@ export function criarRuleEngine({
         continue;
       }
 
+      if (
+        tipo !== "ESTADO" ||
+        !["ON", "OFF", "TOGGLE", "FOLLOW"].includes(comando)
+      ) {
+        log.warn(
+          contexto,
+          `Ação [${tipo}][${comando}] ainda não suportada pelo executor`,
+        );
+        continue;
+      }
+
+      const destino = resources.buscarGlobal(recurso);
+
+      if (destino?.tipo !== "RELE") {
+        log.warn(contexto, "Destino não é um relé válido");
+        continue;
+      }
+
+      let comandoFinal = comando;
+
+      // TOGGLE > inverte o estado confirmado do destino.
+      if (comando === "TOGGLE") {
+        const estado = obterEstadoRele(recurso);
+
+        if (estado === null) {
+          log.warn(contexto, "TOGGLE ignorado: estado do destino desconhecido");
+          continue;
+        }
+
+        comandoFinal = estado ? "OFF" : "ON";
+      }
+
+      // FOLLOW > utiliza o estado da origem do evento.
+      if (comando === "FOLLOW") {
+        if (atual.quando.tipo !== "EVENTO") {
+          log.warn(contexto, "FOLLOW exige condição de evento");
+          continue;
+        }
+
+        const origemGlobal = atual.quando.recurso;
+
+        const valor = Object.hasOwn(valoresEvento, origemGlobal)
+          ? valoresEvento[origemGlobal]
+          : obterValor(origemGlobal);
+
+        if (typeof valor !== "number" || !Number.isFinite(valor)) {
+          log.warn(contexto, "FOLLOW ignorado: estado da origem desconhecido");
+          continue;
+        }
+
+        comandoFinal = valor !== 0 ? "ON" : "OFF";
+      }
+
+      // Simulação > registra também o comando já resolvido.
+      if (modo !== "execute") {
+        log.info(
+          { ...contexto, comando_resolvido: comandoFinal },
+          `[SIMULACAO] Regra #${plano.regra_id}: ` +
+            `${recurso} -> ${comandoFinal} (${comando})`,
+        );
+        continue;
+      }
+
+      if (!comandos) {
+        log.warn(contexto, "Executor de comandos indisponível");
+        continue;
+      }
+
       try {
-        const resultado = await comandos.executar(recurso, comando);
+        const resultado = await comandos.executar(recurso, comandoFinal, {
+          device_id: destino.device_id,
+          recurso_id: destino.recurso_id,
+        });
 
         log.info(
           {
             ...contexto,
             command_id: resultado.command_id,
           },
-          `[EXECUTADA] Regra #${plano.regra_id}: ` + `${recurso} -> ${comando}`,
+          `[EXECUTADA] Regra #${plano.regra_id}: ` +
+            `${recurso} -> ${comandoFinal} (${comando})`,
         );
       } catch (erro) {
         log.error(
           { ...contexto, err: erro },
-          `[FALHA] Regra #${plano.regra_id}: ` + `${recurso} -> ${comando}`,
+          `[FALHA] Regra #${plano.regra_id}: ` +
+            `${recurso} -> ${comandoFinal} (${comando})`,
         );
       }
     }
+  }
+
+  // Serializa ações para ler os estados após o comando anterior.
+  function registrarAcoes(acoes, origem, valoresEvento = {}) {
+    const tarefa = filaAcoes.then(() =>
+      executarAcoes(acoes, origem, valoresEvento),
+    );
+
+    filaAcoes = tarefa.catch((err) => {
+      log.error({ module: "RULES", err }, "Falha na fila de ações");
+    });
+
+    return tarefa;
   }
 
   async function processarEvento(eventoRecebido, estadoAnterior = null) {
@@ -177,7 +273,7 @@ export function criarRuleEngine({
 
     const acoes = avaliar(evento, valoresEvento);
 
-    await registrarAcoes(acoes, `${deviceId}/${recursoId}`);
+    await registrarAcoes(acoes, `${deviceId}/${recursoId}`, valoresEvento);
 
     return acoes;
   }
