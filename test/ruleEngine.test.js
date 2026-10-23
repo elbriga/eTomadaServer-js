@@ -197,63 +197,61 @@ test("POST /api/evento mantém persistência e aciona simulação", async () => 
   }
 });
 
-test("executa somente a regra e o destino autorizados", async () => {
-  const { db } = preparar();
+test("executa todas as regras globais do evento", async () => {
+  const { db, rules } = preparar();
   const chamadas = [];
 
-  const comandos = {
-    async executar(recurso, comando) {
-      chamadas.push({ recurso, comando });
-      return { command_id: 123, confirmed: true };
-    },
-  };
-
-  const log = {
-    info() {},
-    warn() {},
-    error() {},
-  };
-
   try {
+    // Segunda regra para o mesmo evento.
+    rules.criar({
+      nome: "Segunda regra",
+      ativa: true,
+      escopo: "GLOBAL",
+      device_id: null,
+      quando: {
+        tipo: "EVENTO",
+        recurso: "BOTAO_GROW",
+        evento: "CLICK",
+      },
+      acao: {
+        tipo: "ESTADO",
+        recurso: "LUZ_GROW",
+        comando: "OFF",
+      },
+    });
+
     const engine = criarRuleEngine({
       db,
-      log,
-      comandos,
       modo: "execute",
-      regraId: 1,
-      alvoId: "LUZ_GROW",
+      comandos: {
+        async executar(recurso, comando) {
+          chamadas.push({ recurso, comando });
+          return { command_id: chamadas.length };
+        },
+      },
+      log: { info() {}, warn() {}, error() {} },
     });
 
-    await engine.processarEvento(evento);
+    const acoes = await engine.processarEvento(evento);
 
-    assert.deepEqual(chamadas, [{ recurso: "LUZ_GROW", comando: "ON" }]);
-
-    // Mesmo evento, mas destino não autorizado.
-    const bloqueado = criarRuleEngine({
-      db,
-      log,
-      comandos,
-      modo: "execute",
-      regraId: 1,
-      alvoId: "OUTRO_RECURSO",
-    });
-
-    await bloqueado.processarEvento(evento);
-
-    assert.equal(chamadas.length, 1);
+    assert.equal(acoes.length, 2);
+    assert.deepEqual(chamadas, [
+      { recurso: "LUZ_GROW", comando: "ON" },
+      { recurso: "LUZ_GROW", comando: "OFF" },
+    ]);
   } finally {
     db.close();
   }
 });
 
-test("horário: simulação e execução autorizada", async () => {
+test("horário: simula ou executa todas as regras", async () => {
   const { db, rules } = preparar();
   const chamadas = [];
 
   try {
-    const criarHorario = (nome, comando) =>
+    for (const comando of ["ON", "OFF"]) {
       rules.criar({
-        nome,
+        nome: `Horário ${comando}`,
         ativa: true,
         escopo: "GLOBAL",
         device_id: null,
@@ -268,61 +266,40 @@ test("horário: simulação e execução autorizada", async () => {
           comando,
         },
       });
+    }
 
-    const autorizada = criarHorario("Teste OFF", "OFF");
-    criarHorario("Outra regra ON", "ON");
-
-    const engine = criarRuleEngine({
+    const configuracao = {
       db,
-      modo: "execute",
-      regraId: 1, // Regra de evento existente
-      alvoId: "LUZ_GROW",
       comandos: {
         async executar(recurso, comando) {
           chamadas.push({ recurso, comando });
-          return { command_id: 123 };
+          return { command_id: chamadas.length };
         },
       },
-      log: {
-        info() {},
-        warn() {},
-        error() {},
-      },
+      log: { info() {}, warn() {}, error() {} },
+    };
+
+    const simulado = criarRuleEngine({
+      ...configuracao,
+      modo: "simulate",
     });
 
-    // Simulação avalia ambas, sem comandar hardware.
-    const simuladas = await engine.processarHorario({
-      hora: 4,
-      minuto: 0,
-    });
+    const horario = { hora: 4, minuto: 0 };
 
-    assert.equal(simuladas.length, 2);
+    assert.equal((await simulado.processarHorario(horario)).length, 2);
     assert.equal(chamadas.length, 0);
 
-    // Execução apenas da regra autorizada.
-    const executadas = await engine.processarHorario(
-      { hora: 4, minuto: 0 },
-      {
-        executar: true,
-        regraAutorizada: autorizada.id,
-        destinoAutorizado: "LUZ_GROW",
-      },
-    );
+    const executor = criarRuleEngine({
+      ...configuracao,
+      modo: "execute",
+    });
 
-    assert.equal(executadas.length, 1);
-    assert.deepEqual(chamadas, [{ recurso: "LUZ_GROW", comando: "OFF" }]);
+    assert.equal((await executor.processarHorario(horario)).length, 2);
 
-    // Destino diferente: comando bloqueado.
-    await engine.processarHorario(
-      { hora: 4, minuto: 0 },
-      {
-        executar: true,
-        regraAutorizada: autorizada.id,
-        destinoAutorizado: "OUTRO_RECURSO",
-      },
-    );
-
-    assert.equal(chamadas.length, 1);
+    assert.deepEqual(chamadas, [
+      { recurso: "LUZ_GROW", comando: "ON" },
+      { recurso: "LUZ_GROW", comando: "OFF" },
+    ]);
   } finally {
     db.close();
   }
@@ -406,7 +383,7 @@ test("boot: simula divergência sem executar comandos", () => {
   }
 });
 
-test("boot: restaura somente a divergência autorizada", async () => {
+test("boot: restaura divergências sem filtro de regra", async () => {
   const { db, rules } = preparar();
   const chamadas = [];
 
@@ -446,9 +423,6 @@ test("boot: restaura somente a divergência autorizada", async () => {
       log,
       comandos,
       modo: "execute",
-      modoBoot: "execute",
-      regraBootId: off.id,
-      alvoBootId: "LUZ_GROW",
     });
 
     const snapshot = (estado) => ({
@@ -487,21 +461,6 @@ test("boot: restaura somente a divergência autorizada", async () => {
 
     // Estado já correto: não repete o comando.
     await engine.reconciliarBoot("GROW", snapshot(0), instante);
-
-    assert.equal(chamadas.length, 1);
-
-    // Destino não autorizado: não executa.
-    const bloqueado = criarRuleEngine({
-      db,
-      log,
-      comandos,
-      modo: "execute",
-      modoBoot: "execute",
-      regraBootId: off.id,
-      alvoBootId: "OUTRO_RECURSO",
-    });
-
-    await bloqueado.reconciliarBoot("GROW", snapshot(1), instante);
 
     assert.equal(chamadas.length, 1);
   } finally {

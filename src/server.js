@@ -48,6 +48,7 @@ let ruleEngine = null;
 const monitor = criarNodeMonitor({
   db,
   log: app.log,
+  // Reboot de nodo > reconciliar regras globais.
   aoReiniciar({ deviceId, snapshot }) {
     return ruleEngine?.reconciliarBoot(deviceId, snapshot);
   },
@@ -63,40 +64,14 @@ const comandos = criarResourceService({
   permitirComandos,
 });
 
-// Fase 3.3: controle explícito do motor global.
+// Motor global > único modo para eventos, horários e boot.
 const modoRegras = process.env.RULE_ENGINE_MODE ?? "off";
-const regraId = Number(process.env.RULE_ENGINE_RULE_ID);
-const alvoId = process.env.RULE_ENGINE_TARGET_GLOBAL_ID ?? null;
 
 if (!["off", "simulate", "execute"].includes(modoRegras))
   throw new Error("RULE_ENGINE_MODE inválido");
 
-if (modoRegras !== "off" && (!Number.isSafeInteger(regraId) || regraId < 1))
-  throw new Error("RULE_ENGINE_RULE_ID inválido");
-
-if (modoRegras === "execute") {
-  if (!permitirComandos) throw new Error("Comandos físicos desabilitados");
-
-  if (!alvoId) throw new Error("RULE_ENGINE_TARGET_GLOBAL_ID obrigatório");
-}
-
-// Configuração independente da restauração após reboot.
-const modoBoot = process.env.RULE_BOOT_MODE ?? "simulate";
-const regraBootId = Number(process.env.RULE_BOOT_RULE_ID);
-const alvoBootId = process.env.RULE_BOOT_TARGET_GLOBAL_ID ?? null;
-
-if (!["off", "simulate", "execute"].includes(modoBoot))
-  throw new Error("RULE_BOOT_MODE inválido");
-
-if (modoBoot === "execute") {
-  if (modoRegras !== "execute" || !permitirComandos)
-    throw new Error("Execução física de boot não permitida");
-
-  if (!Number.isSafeInteger(regraBootId) || regraBootId < 1)
-    throw new Error("RULE_BOOT_RULE_ID inválido");
-
-  if (!alvoBootId) throw new Error("RULE_BOOT_TARGET_GLOBAL_ID obrigatório");
-}
+if (modoRegras === "execute" && !permitirComandos)
+  throw new Error("Comandos físicos desabilitados");
 
 ruleEngine =
   modoRegras === "off"
@@ -106,69 +81,24 @@ ruleEngine =
         log: app.log,
         comandos,
         modo: modoRegras,
-        regraId,
-        alvoId,
-        modoBoot,
-        regraBootId,
-        alvoBootId,
       });
 
-const modoHorario = process.env.RULE_SCHEDULE_MODE ?? "off";
-
-if (!["off", "simulate", "execute"].includes(modoHorario)) {
-  throw new Error("RULE_SCHEDULE_MODE inválido");
-}
-
-if (modoHorario === "simulate" && !ruleEngine) {
-  throw new Error("Agendador exige um ruleEngine ativo");
-}
-
-const regraHorarioId = Number(process.env.RULE_SCHEDULE_RULE_ID);
-const alvoHorarioId = process.env.RULE_SCHEDULE_TARGET_GLOBAL_ID ?? null;
-
-if (modoHorario === "execute") {
-  if (modoRegras !== "execute" || !permitirComandos)
-    throw new Error("Execução física de horários não permitida");
-
-  if (!Number.isSafeInteger(regraHorarioId) || regraHorarioId < 1)
-    throw new Error("RULE_SCHEDULE_RULE_ID inválido");
-
-  if (!alvoHorarioId)
-    throw new Error("RULE_SCHEDULE_TARGET_GLOBAL_ID obrigatório");
-}
-
-const ruleScheduler =
-  modoHorario !== "off"
-    ? criarRuleScheduler({
-        processarHorario: (horario) =>
-          ruleEngine.processarHorario(horario, {
-            executar: modoHorario === "execute",
-            regraAutorizada: regraHorarioId,
-            destinoAutorizado: alvoHorarioId,
-          }),
-        log: app.log,
-      })
-    : null;
-
-if (modoHorario === "execute") {
-  app.log.warn(
-    {
-      module: "RULES",
-      regra_id: regraHorarioId,
-      alvo: alvoHorarioId,
-    },
-    "Execução física de regras por horário habilitada",
-  );
-}
+// Agendador > ativo sempre que o motor estiver habilitado.
+const ruleScheduler = ruleEngine
+  ? criarRuleScheduler({
+      processarHorario: (horario) => ruleEngine.processarHorario(horario),
+      log: app.log,
+    })
+  : null;
 
 app.log.info(
   {
     module: "RULES",
     modo: modoRegras,
-    regra_id: ruleEngine ? regraId : null,
-    alvo: alvoId,
+    agendador: Boolean(ruleScheduler),
+    reconciliacaoBoot: Boolean(ruleEngine),
   },
-  "Motor de regras configurado",
+  "Motor global configurado",
 );
 
 app.addHook("onClose", async () => {

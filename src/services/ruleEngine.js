@@ -11,11 +11,6 @@ export function criarRuleEngine({
   log,
   comandos = null,
   modo = "simulate",
-  regraId = null,
-  alvoId = null,
-  modoBoot = "simulate",
-  regraBootId = null,
-  alvoBootId = null,
 }) {
   const rules = criarRuleRepository(db);
   const resources = criarResourceRepository(db);
@@ -68,24 +63,11 @@ export function criarRuleEngine({
       .listar({ escopo: "GLOBAL" })
       .filter(
         (regra) =>
-          (regraId === null || regra.id === regraId) &&
           regra.ativa &&
           regra.quando.tipo === "EVENTO" &&
           regra.quando.recurso === evento.recurso &&
           regra.quando.evento === evento.tipo,
       );
-    /*
-    const regras = rules
-      .listar({ escopo: "GLOBAL" })
-      .filter(
-        (regra) =>
-          regra.ativa &&
-          regra.quando.tipo === evento.tipo &&
-          (evento.tipo !== "EVENTO" ||
-            (regra.quando.recurso === evento.recurso &&
-              regra.quando.evento === evento.evento)),
-      );
-    */
 
     const valores = {
       ...obterValores(regras),
@@ -95,15 +77,7 @@ export function criarRuleEngine({
     return avaliarRegrasGlobais(regras, evento, valores);
   }
 
-  async function registrarAcoes(
-    acoes,
-    origem,
-    {
-      somenteSimulacao = false,
-      regraAutorizada = regraId,
-      destinoAutorizado = alvoId,
-    } = {},
-  ) {
+  async function registrarAcoes(acoes, origem) {
     for (const plano of acoes) {
       const { tipo, recurso, comando } = plano.acao;
 
@@ -114,7 +88,7 @@ export function criarRuleEngine({
         acao: plano.acao,
       };
 
-      if (modo !== "execute" || somenteSimulacao) {
+      if (modo !== "execute") {
         log.info(
           contexto,
           `[SIMULACAO] Regra #${plano.regra_id} ` +
@@ -123,16 +97,9 @@ export function criarRuleEngine({
         continue;
       }
 
-      // Primeira etapa: apenas comandos ON/OFF
-      // e somente para o destino autorizado.
-      if (
-        plano.regra_id !== regraAutorizada ||
-        tipo !== "ESTADO" ||
-        !["ON", "OFF"].includes(comando) ||
-        recurso !== destinoAutorizado ||
-        !comandos
-      ) {
-        log.warn(contexto, "Ação não autorizada para execução");
+      // Executor físico > aceitar ações ON/OFF de qualquer regra global
+      if (tipo !== "ESTADO" || !["ON", "OFF"].includes(comando) || !comandos) {
+        log.warn(contexto, "Ação ainda não suportada pelo executor");
         continue;
       }
 
@@ -215,18 +182,10 @@ export function criarRuleEngine({
     return acoes;
   }
 
-  async function processarHorario(
-    { hora, minuto },
-    { executar = false, regraAutorizada = null, destinoAutorizado = null } = {},
-  ) {
+  async function processarHorario({ hora, minuto }) {
     const regras = rules
       .listar({ escopo: "GLOBAL" })
-      .filter(
-        (regra) =>
-          regra.ativa &&
-          regra.quando?.tipo === "HORARIO" &&
-          (!executar || regra.id === regraAutorizada),
-      );
+      .filter((regra) => regra.ativa && regra.quando?.tipo === "HORARIO");
 
     const valores = obterValores(regras);
 
@@ -242,12 +201,8 @@ export function criarRuleEngine({
       `HORARIO ${String(hora).padStart(2, "0")}:` +
       String(minuto).padStart(2, "0");
 
-    // Nesta etapa, horário nunca executa comandos físicos.
-    await registrarAcoes(acoes, origem, {
-      somenteSimulacao: !executar,
-      regraAutorizada,
-      destinoAutorizado,
-    });
+    // Horários utilizam o mesmo executor dos eventos.
+    await registrarAcoes(acoes, origem);
 
     return acoes;
   }
@@ -335,7 +290,7 @@ export function criarRuleEngine({
   }
 
   async function reconciliarBoot(deviceId, snapshot, instante = new Date()) {
-    if (modoBoot === "off") return [];
+    if (modo === "off") return [];
 
     const chave = deviceId.toUpperCase();
 
@@ -344,7 +299,7 @@ export function criarRuleEngine({
 
     // Execução física exige um snapshot válido do nodo reiniciado.
     if (
-      modoBoot === "execute" &&
+      modo === "execute" &&
       (snapshot?.device_id?.toUpperCase() !== chave ||
         !Number.isInteger(snapshot.uptime))
     ) {
@@ -363,10 +318,10 @@ export function criarRuleEngine({
         deviceId,
         snapshot,
         instante,
-        modoBoot !== "execute",
+        modo !== "execute",
       );
 
-      if (modoBoot !== "execute") return resultados;
+      if (modo !== "execute") return resultados;
 
       if (modo !== "execute" || !comandos) {
         log.warn(
@@ -377,13 +332,6 @@ export function criarRuleEngine({
       }
 
       for (const resultado of resultados) {
-        // Restaura somente a regra e o recurso autorizados.
-        if (
-          resultado.regra_id !== regraBootId ||
-          resultado.global_id !== alvoBootId
-        )
-          continue;
-
         const contexto = {
           module: "RULES",
           ...resultado,
