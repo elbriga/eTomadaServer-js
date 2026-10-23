@@ -98,6 +98,18 @@ export default async function eventsRoutes(
         throw erro;
       }
 
+      // Detector de boot
+      if (event.evento?.toUpperCase() === "BOOT" && event.id === "ETOMADA") {
+        setImmediate(() => {
+          monitor.consultar(event.origem).catch((erro) => {
+            app.log.warn(
+              { module: "NODES", device_id: event.origem, err: erro },
+              "Falha ao consultar snapshot após BOOT",
+            );
+          });
+        });
+      }
+
       // Impede que um GET antigo sobrescreva o evento.
       if (atualizado) {
         monitor.receberEvento(event.origem);
