@@ -16,17 +16,6 @@ fi
 
 echo "=== eTomadaServer UPGRADE: $ENV ==="
 
-echo "=== STOP $SERVICE ==="
-"${SUDO[@]}" systemctl stop "$SERVICE"
-
-echo "=== BACKUP DB ==="
-source /etc/etomada-server/${ENV}.env
-if [ -f "$DB_PATH" ]; then
-    cp $DB_PATH $DB_PATH.bak
-else
-    echo "???????????????? DABATASE [$DB_PATH] nao encontrada!"
-fi
-
 echo "=== GIT PULL ==="
 COMMIT_ANTERIOR=$(git rev-parse HEAD)
 git pull --ff-only
@@ -37,6 +26,17 @@ if [[ ! -d node_modules ]] ||
     npm ci --omit=dev --no-audit --no-fund
 else
     echo "Dependencias inalteradas."
+fi
+
+echo "=== STOP $SERVICE ==="
+"${SUDO[@]}" systemctl stop "$SERVICE"
+
+echo "=== BACKUP DB ==="
+source /etc/etomada-server/${ENV}.env
+if [ -f "$DB_PATH" ]; then
+    cp -- "$DB_PATH" "${DB_PATH}.bak"
+else
+    echo "???????????????? DABATASE [$DB_PATH] nao encontrada!"
 fi
 
 echo "=== SYSTEMD RELOAD ==="
