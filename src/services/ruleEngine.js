@@ -87,7 +87,11 @@ export function criarRuleEngine({
     return avaliarRegrasGlobais(regras, evento, valores);
   }
 
-  async function registrarAcoes(acoes, origem) {
+  async function registrarAcoes(
+    acoes,
+    origem,
+    { somenteSimulacao = false } = {},
+  ) {
     for (const plano of acoes) {
       const { tipo, recurso, comando } = plano.acao;
 
@@ -98,7 +102,7 @@ export function criarRuleEngine({
         acao: plano.acao,
       };
 
-      if (modo !== "execute") {
+      if (modo !== "execute" || somenteSimulacao) {
         log.info(
           contexto,
           `[SIMULACAO] Regra #${plano.regra_id} ` +
@@ -198,7 +202,35 @@ export function criarRuleEngine({
     return acoes;
   }
 
+  async function processarHorario({ hora, minuto }) {
+    const regras = rules
+      .listar({ escopo: "GLOBAL" })
+      .filter((regra) => regra.ativa && regra.quando?.tipo === "HORARIO");
+
+    const valores = obterValores(regras);
+
+    const evento = {
+      tipo: "HORARIO",
+      hora,
+      minuto,
+    };
+
+    const acoes = avaliarRegrasGlobais(regras, evento, valores);
+
+    const origem =
+      `HORARIO ${String(hora).padStart(2, "0")}:` +
+      String(minuto).padStart(2, "0");
+
+    // Nesta etapa, horário nunca executa comandos físicos.
+    await registrarAcoes(acoes, origem, {
+      somenteSimulacao: true,
+    });
+
+    return acoes;
+  }
+
   return {
     processarEvento,
+    processarHorario,
   };
 }

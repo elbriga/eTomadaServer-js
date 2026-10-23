@@ -17,6 +17,7 @@ import groupsRoutes from "./routes/groups.js";
 import { criarResourceService } from "./services/resourceService.js";
 import rulesRoutes from "./routes/rules.js";
 import { criarRuleEngine } from "./services/ruleEngine.js";
+import { criarRuleScheduler } from "./services/ruleScheduler.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -83,6 +84,24 @@ const ruleEngine =
         alvoId,
       });
 
+const modoHorario = process.env.RULE_SCHEDULE_MODE ?? "off";
+
+if (!["off", "simulate"].includes(modoHorario)) {
+  throw new Error("RULE_SCHEDULE_MODE inválido");
+}
+
+if (modoHorario === "simulate" && !ruleEngine) {
+  throw new Error("Agendador exige um ruleEngine ativo");
+}
+
+const ruleScheduler =
+  modoHorario === "simulate"
+    ? criarRuleScheduler({
+        processarHorario: (horario) => ruleEngine.processarHorario(horario),
+        log: app.log,
+      })
+    : null;
+
 app.log.info(
   {
     module: "RULES",
@@ -94,6 +113,7 @@ app.log.info(
 );
 
 app.addHook("onClose", async () => {
+  await ruleScheduler?.parar();
   await monitor.parar();
   logsServidor.parar();
   db.close();
@@ -170,6 +190,7 @@ process.on("SIGINT", () => void encerrar("SIGINT"));
 try {
   await app.listen({ host, port });
   monitor.iniciar();
+  ruleScheduler?.iniciar();
 } catch (err) {
   app.log.error(err);
   process.exit(1);
