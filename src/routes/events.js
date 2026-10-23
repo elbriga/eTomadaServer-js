@@ -1,7 +1,16 @@
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
 
-export default async function eventsRoutes(app, { db, monitor }) {
+export default async function eventsRoutes(
+  app,
+  { db, monitor, ruleEngine = null },
+) {
+  let ativo = true;
+
+  app.addHook("onClose", () => {
+    ativo = false;
+  });
+
   const resources = criarResourceRepository(db);
   const commands = criarCommandRepository(db);
 
@@ -76,6 +85,22 @@ export default async function eventsRoutes(app, { db, monitor }) {
       if (atualizado) {
         monitor.receberEvento(event.origem);
         commands.reconciliar(event.origem, event.id, device.estado, "event");
+      }
+
+      // Motor global: processamento separado do recebimento HTTP.
+      if (ruleEngine) {
+        setImmediate(() => {
+          if (!ativo) return;
+
+          try {
+            ruleEngine.processarEvento(event);
+          } catch (erro) {
+            app.log.error(
+              { module: "RULES", err: erro },
+              "Falha ao processar evento no motor de regras",
+            );
+          }
+        });
       }
 
       return { ok: true, id };

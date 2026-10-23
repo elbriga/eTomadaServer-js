@@ -16,6 +16,7 @@ import { criarServerLogStream } from "./services/serverLogStream.js";
 import groupsRoutes from "./routes/groups.js";
 import { criarResourceService } from "./services/resourceService.js";
 import rulesRoutes from "./routes/rules.js";
+import { criarRuleEngine } from "./services/ruleEngine.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -52,6 +53,9 @@ const comandos = criarResourceService({
   log: app.log,
   permitirComandos,
 });
+
+// Fase 3.3: motor somente em simulação no DEV.
+const ruleEngine = env === "dev" ? criarRuleEngine({ db, log: app.log }) : null;
 
 app.addHook("onClose", async () => {
   await monitor.parar();
@@ -97,7 +101,7 @@ logsServidor.configurar(criarLogRepository(db, notificarLog));
 
 // ==== APIs ====
 await app.register(logsRoutes, { db, notificarLog });
-await app.register(eventsRoutes, { db, monitor });
+await app.register(eventsRoutes, { db, monitor, ruleEngine });
 await app.register(resourcesRoutes, {
   db,
   monitor,
