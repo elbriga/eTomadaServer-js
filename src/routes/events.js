@@ -6,9 +6,11 @@ export default async function eventsRoutes(
   { db, monitor, ruleEngine = null },
 ) {
   let ativo = true;
+  const tarefas = new Set();
 
-  app.addHook("onClose", () => {
+  app.addHook("onClose", async () => {
     ativo = false;
+    await Promise.allSettled([...tarefas]);
   });
 
   const resources = criarResourceRepository(db);
@@ -53,6 +55,21 @@ export default async function eventsRoutes(
 
       const timestamp = Math.floor(Date.now() / 1000);
 
+      let estadoAnterior = null;
+
+      if (ruleEngine && event.evento?.toUpperCase() === "TOGGLE") {
+        const anterior = resources.buscar(event.origem, event.id);
+
+        try {
+          const estado = JSON.parse(anterior?.reported_json ?? "null")?.estado;
+
+          if (estado === true || estado === 1) estadoAnterior = 1;
+          else if (estado === false || estado === 0) estadoAnterior = 0;
+        } catch {
+          // Estado desconhecido; o evento ainda será processado.
+        }
+      }
+
       let id;
       let atualizado = false;
 
@@ -92,14 +109,17 @@ export default async function eventsRoutes(
         setImmediate(() => {
           if (!ativo) return;
 
-          try {
-            ruleEngine.processarEvento(event);
-          } catch (erro) {
-            app.log.error(
-              { module: "RULES", err: erro },
-              "Falha ao processar evento no motor de regras",
-            );
-          }
+          const tarefa = Promise.resolve()
+            .then(() => ruleEngine.processarEvento(event, estadoAnterior))
+            .catch((erro) => {
+              app.log.error(
+                { module: "RULES", err: erro },
+                "Falha ao processar evento no motor de regras",
+              );
+            })
+            .finally(() => tarefas.delete(tarefa));
+
+          tarefas.add(tarefa);
         });
       }
 

@@ -75,7 +75,7 @@ const evento = {
   device: {},
 };
 
-test("evento físico dispara regra global", () => {
+test("evento físico dispara regra global", async () => {
   const { db } = preparar();
 
   try {
@@ -88,7 +88,7 @@ test("evento físico dispara regra global", () => {
       },
     });
 
-    const acoes = engine.processarEvento(evento);
+    const acoes = await engine.processarEvento(evento);
 
     assert.equal(acoes.length, 1);
     assert.equal(acoes[0].regra_id, 1);
@@ -102,7 +102,7 @@ test("evento físico dispara regra global", () => {
   }
 });
 
-test("evento sem global_id não dispara regra", () => {
+test("evento sem global_id não dispara regra", async () => {
   const { db } = preparar();
 
   try {
@@ -112,7 +112,7 @@ test("evento sem global_id não dispara regra", () => {
     });
 
     assert.deepEqual(
-      engine.processarEvento({
+      await engine.processarEvento({
         ...evento,
         id: "NAO_EXISTE",
       }),
@@ -123,7 +123,7 @@ test("evento sem global_id não dispara regra", () => {
   }
 });
 
-test("check falso impede disparo", () => {
+test("check falso impede disparo", async () => {
   const { db } = preparar();
 
   try {
@@ -137,7 +137,7 @@ test("check falso impede disparo", () => {
       log: { info() {} },
     });
 
-    assert.deepEqual(engine.processarEvento(evento), []);
+    assert.deepEqual(await engine.processarEvento(evento), []);
   } finally {
     db.close();
   }
@@ -193,6 +193,55 @@ test("POST /api/evento mantém persistência e aciona simulação", async () => 
     assert.equal(logs[0].dados.regra_id, 1);
   } finally {
     await app.close();
+    db.close();
+  }
+});
+
+test("executa somente a regra e o destino autorizados", async () => {
+  const { db } = preparar();
+  const chamadas = [];
+
+  const comandos = {
+    async executar(recurso, comando) {
+      chamadas.push({ recurso, comando });
+      return { command_id: 123, confirmed: true };
+    },
+  };
+
+  const log = {
+    info() {},
+    warn() {},
+    error() {},
+  };
+
+  try {
+    const engine = criarRuleEngine({
+      db,
+      log,
+      comandos,
+      modo: "execute",
+      regraId: 1,
+      alvoId: "LUZ_GROW",
+    });
+
+    await engine.processarEvento(evento);
+
+    assert.deepEqual(chamadas, [{ recurso: "LUZ_GROW", comando: "ON" }]);
+
+    // Mesmo evento, mas destino não autorizado.
+    const bloqueado = criarRuleEngine({
+      db,
+      log,
+      comandos,
+      modo: "execute",
+      regraId: 1,
+      alvoId: "OUTRO_RECURSO",
+    });
+
+    await bloqueado.processarEvento(evento);
+
+    assert.equal(chamadas.length, 1);
+  } finally {
     db.close();
   }
 });

@@ -54,8 +54,44 @@ const comandos = criarResourceService({
   permitirComandos,
 });
 
-// Fase 3.3: motor somente em simulação no DEV.
-const ruleEngine = env === "dev" ? criarRuleEngine({ db, log: app.log }) : null;
+// Fase 3.3: controle explícito do motor global.
+const modoRegras = process.env.RULE_ENGINE_MODE ?? "off";
+const regraId = Number(process.env.RULE_ENGINE_RULE_ID);
+const alvoId = process.env.RULE_ENGINE_TARGET_GLOBAL_ID ?? null;
+
+if (!["off", "simulate", "execute"].includes(modoRegras))
+  throw new Error("RULE_ENGINE_MODE inválido");
+
+if (modoRegras !== "off" && (!Number.isSafeInteger(regraId) || regraId < 1))
+  throw new Error("RULE_ENGINE_RULE_ID inválido");
+
+if (modoRegras === "execute") {
+  if (!permitirComandos) throw new Error("Comandos físicos desabilitados");
+
+  if (!alvoId) throw new Error("RULE_ENGINE_TARGET_GLOBAL_ID obrigatório");
+}
+
+const ruleEngine =
+  modoRegras === "off"
+    ? null
+    : criarRuleEngine({
+        db,
+        log: app.log,
+        comandos,
+        modo: modoRegras,
+        regraId,
+        alvoId,
+      });
+
+app.log.info(
+  {
+    module: "RULES",
+    modo: modoRegras,
+    regra_id: ruleEngine ? regraId : null,
+    alvo: alvoId,
+  },
+  "Motor de regras configurado",
+);
 
 app.addHook("onClose", async () => {
   await monitor.parar();
