@@ -43,7 +43,15 @@ const app = Fastify({
 registrarAuth(app);
 
 const db = abrirBanco();
-const monitor = criarNodeMonitor({ db, log: app.log });
+
+let ruleEngine = null;
+const monitor = criarNodeMonitor({
+  db,
+  log: app.log,
+  aoReiniciar({ deviceId, snapshot }) {
+    ruleEngine?.simularBoot(deviceId, snapshot);
+  },
+});
 
 const permitirComandos =
   env === "prod" && process.env.ENABLE_PHYSICAL_COMMANDS === "true";
@@ -72,7 +80,7 @@ if (modoRegras === "execute") {
   if (!alvoId) throw new Error("RULE_ENGINE_TARGET_GLOBAL_ID obrigatório");
 }
 
-const ruleEngine =
+ruleEngine =
   modoRegras === "off"
     ? null
     : criarRuleEngine({

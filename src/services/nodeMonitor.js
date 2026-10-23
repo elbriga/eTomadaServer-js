@@ -1,11 +1,15 @@
+import { performance } from "node:perf_hooks";
+
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { consultarSnapshot, NodeClientError } from "../devices/nodeClient.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
+import { classificarUptime } from "./nodeUptime.js";
 
 export function criarNodeMonitor({
   db,
   log,
+  aoReiniciar = null,
   intervaloMs = 30_000,
   timeoutMs = 2_000,
   concorrencia = 4,
@@ -36,9 +40,51 @@ export function criarNodeMonitor({
         snapshot: null,
         origem: null,
         revisaoPush: 0,
+        ultimaObservacaoUptime: null,
       });
     }
     return estados.get(deviceId);
+  }
+
+  function observarUptime(deviceId, snapshot, origem) {
+    const s = estado(deviceId);
+
+    const atual = {
+      uptime: snapshot.uptime,
+      instanteMs: performance.now(),
+    };
+
+    const resultado = classificarUptime(s.ultimaObservacaoUptime, atual);
+
+    if (resultado === "indeterminado") {
+      // Descartamos a referência antiga em vez de
+      // produzir uma conclusão sobre um intervalo incerto.
+      s.ultimaObservacaoUptime = null;
+      return;
+    }
+
+    s.ultimaObservacaoUptime = atual;
+
+    if (resultado !== "reiniciou") return;
+
+    log.warn(
+      {
+        module: "NODES",
+        device_id: deviceId,
+        uptime: atual.uptime,
+        origem,
+      },
+      "Reinicialização de nodo detectada",
+    );
+
+    try {
+      aoReiniciar?.({ deviceId, snapshot, origem });
+    } catch (err) {
+      log.error(
+        { module: "RULES", err, device_id: deviceId },
+        "Falha na reconciliação após reboot",
+      );
+    }
   }
 
   function visualizar(node, incluirSnapshot = false) {
@@ -120,6 +166,8 @@ export function criarNodeMonitor({
     s.duracao_ms = resultado.duracao_ms;
     s.snapshot = resultado.snapshot;
     s.origem = "poll";
+
+    observarUptime(deviceId, resultado.snapshot, "poll");
 
     const node = nodes.buscar(deviceId);
 
@@ -251,6 +299,8 @@ export function criarNodeMonitor({
     s.duracao_ms = null;
     s.snapshot = snapshot;
     s.origem = "push";
+
+    observarUptime(node.device_id, snapshot, "push");
 
     if (node.enabled && anterior !== "online") {
       log.info(

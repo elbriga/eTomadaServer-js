@@ -1,6 +1,8 @@
 import { criarRuleRepository } from "../repositories/ruleRepository.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { avaliarRegrasGlobais } from "./ruleEvaluator.js";
+import { calcularEstadosBootGlobais } from "./ruleEvaluator.js";
+import { horarioLocal } from "./ruleScheduler.js";
 
 export function criarRuleEngine({
   db,
@@ -244,8 +246,85 @@ export function criarRuleEngine({
     return acoes;
   }
 
+  function simularBoot(deviceId, snapshot, instante = new Date()) {
+    const { hora, minuto } = horarioLocal(instante);
+
+    // Nesta etapa, não restaurar regras condicionais.
+    const regras = rules
+      .listar({ escopo: "GLOBAL" })
+      .filter((regra) => !regra.quando?.check);
+
+    const planos = calcularEstadosBootGlobais(regras, hora, minuto);
+
+    // Usamos os estados do snapshot atual, não o cache
+    // anterior do SQLite.
+    const locais = new Map(
+      (snapshot.recursos ?? [])
+        .filter((r) => r.remoto !== true)
+        .map((r) => [r.id, r]),
+    );
+
+    const resultados = [];
+
+    for (const plano of planos) {
+      const globalId = plano.acao.recurso;
+      const recurso = resources.buscarGlobal(globalId);
+
+      if (
+        !recurso ||
+        recurso.device_id.toUpperCase() !== deviceId.toUpperCase() ||
+        recurso.tipo.toUpperCase() !== "RELE"
+      )
+        continue;
+
+      const fisico = locais.get(recurso.recurso_id);
+      if (!fisico) continue;
+
+      const bruto = fisico.device?.estado;
+
+      const observado =
+        bruto === true || bruto === 1
+          ? 1
+          : bruto === false || bruto === 0
+            ? 0
+            : null;
+
+      const esperado = plano.acao.comando === "ON" ? 1 : 0;
+
+      const situacao =
+        observado === null
+          ? "DESCONHECIDO"
+          : observado === esperado
+            ? "OK"
+            : "DIVERGENTE";
+
+      const resultado = {
+        device_id: deviceId,
+        global_id: globalId,
+        recurso_id: recurso.recurso_id,
+        regra_id: plano.regra_id,
+        revision: plano.revision,
+        esperado,
+        observado,
+        situacao,
+      };
+
+      resultados.push(resultado);
+
+      log.info(
+        { module: "RULES", ...resultado },
+        `[BOOT][SIMULACAO] ${deviceId}/${globalId}: ` +
+          `esperado=${esperado}, observado=${observado}, ` +
+          `situacao=${situacao}`,
+      );
+    }
+
+    return resultados;
+  }
+
   return {
     processarEvento,
     processarHorario,
+    simularBoot,
   };
 }

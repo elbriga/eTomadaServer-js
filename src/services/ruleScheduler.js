@@ -11,7 +11,7 @@ const formato = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 
-function horarioLocal(instante) {
+export function horarioLocal(instante) {
   const partes = Object.fromEntries(
     formato
       .formatToParts(instante)

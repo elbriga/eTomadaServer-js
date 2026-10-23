@@ -327,3 +327,81 @@ test("horário: simulação e execução autorizada", async () => {
     db.close();
   }
 });
+
+test("boot: simula divergência sem executar comandos", () => {
+  const { db, rules } = preparar();
+  const logs = [];
+  const chamadas = [];
+
+  try {
+    const criarHorario = (hora, comando) =>
+      rules.criar({
+        nome: `Teste ${hora} ${comando}`,
+        ativa: true,
+        escopo: "GLOBAL",
+        device_id: null,
+        quando: {
+          tipo: "HORARIO",
+          hora,
+          minuto: 0,
+        },
+        acao: {
+          tipo: "ESTADO",
+          recurso: "LUZ_GROW",
+          comando,
+        },
+      });
+
+    criarHorario(4, "ON");
+    criarHorario(23, "OFF");
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      regraId: 1,
+      alvoId: "LUZ_GROW",
+      comandos: {
+        async executar(...args) {
+          chamadas.push(args);
+        },
+      },
+      log: {
+        info: (dados, mensagem) => logs.push({ dados, mensagem }),
+        warn() {},
+        error() {},
+      },
+    });
+
+    const snapshot = (estado) => ({
+      device_id: "GROW",
+      recursos: [
+        {
+          id: "R1",
+          tipo: "RELE",
+          device: { estado },
+        },
+      ],
+    });
+
+    // 05:00 UTC = 02:00 em São Paulo.
+    const instante = new Date("2026-10-23T05:00:00Z");
+
+    const divergente = engine.simularBoot("GROW", snapshot(1), instante);
+
+    assert.equal(divergente.length, 1);
+    assert.equal(divergente[0].esperado, 0);
+    assert.equal(divergente[0].observado, 1);
+    assert.equal(divergente[0].situacao, "DIVERGENTE");
+
+    const correto = engine.simularBoot("GROW", snapshot(0), instante);
+
+    assert.equal(correto[0].situacao, "OK");
+
+    // Mesmo em execute, boot não envia comandos.
+    assert.deepEqual(chamadas, []);
+
+    assert.match(logs[0].mensagem, /BOOT.*SIMULACAO/);
+  } finally {
+    db.close();
+  }
+});
