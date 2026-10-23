@@ -98,7 +98,7 @@ export default async function eventsRoutes(
         throw erro;
       }
 
-      // Detector de boot
+      // Detector de boot > consultar snapshot imediatamente
       if (event.evento?.toUpperCase() === "BOOT" && event.id === "ETOMADA") {
         setImmediate(() => {
           monitor.consultar(event.origem).catch((erro) => {
