@@ -1,5 +1,5 @@
 // Versão 1: esquema legado + cadastro centralizado de nodos.
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const COLUNAS = {
   logs: [
@@ -71,6 +71,18 @@ const COLUNAS = {
   ],
   groups: ["group_id", "nome", "descricao", "created_at", "updated_at"],
   group_resources: ["group_id", "device_id", "recurso_id"],
+  rules: [
+    "id",
+    "nome",
+    "ativa",
+    "escopo",
+    "device_id",
+    "quando_json",
+    "acao_json",
+    "revision",
+    "created_at",
+    "updated_at",
+  ],
 };
 
 export const TABELAS = Object.keys(COLUNAS);
@@ -84,6 +96,7 @@ const INDICES = {
   idx_resources_global_id: ["global_id"],
   idx_resource_commands_resource: ["device_id", "recurso_id", "id"],
   idx_group_resources_resource: ["device_id", "recurso_id"],
+  idx_rules_escopo_nodo: ["escopo", "device_id"],
 };
 
 const migracoes = {
@@ -238,6 +251,42 @@ const migracoes = {
       CREATE INDEX idx_group_resources_resource
         ON group_resources(device_id, recurso_id);
     `);
+  },
+
+  5(db) {
+    db.exec(`
+    CREATE TABLE rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT
+        CHECK (id BETWEEN 1 AND 65535),
+
+      nome TEXT NOT NULL,
+      ativa INTEGER NOT NULL DEFAULT 1
+        CHECK (ativa IN (0, 1)),
+
+      escopo TEXT NOT NULL
+        CHECK (escopo IN ('GLOBAL', 'LOCAL')),
+
+      device_id TEXT COLLATE NOCASE,
+
+      quando_json TEXT NOT NULL CHECK (json_valid(quando_json)),
+      acao_json TEXT NOT NULL CHECK (json_valid(acao_json)),
+
+      revision INTEGER NOT NULL DEFAULT 1
+        CHECK (revision >= 1),
+
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+
+      CHECK (
+        (escopo = 'GLOBAL' AND device_id IS NULL)
+        OR
+        (escopo = 'LOCAL' AND device_id IS NOT NULL)
+      )
+    );
+
+    CREATE INDEX idx_rules_escopo_nodo
+      ON rules(escopo, device_id);
+  `);
   },
 };
 

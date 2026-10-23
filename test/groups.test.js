@@ -29,13 +29,13 @@ function preparar() {
   return { db, resources, groups };
 }
 
-test("schema v4 e inicialização repetida", () => {
+test("schema v5 e inicialização repetida", () => {
   const { db } = preparar();
 
   try {
     inicializarSchema(db);
 
-    assert.equal(db.prepare("PRAGMA user_version").get().user_version, 4);
+    assert.equal(db.prepare("PRAGMA user_version").get().user_version, 5);
 
     assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 
