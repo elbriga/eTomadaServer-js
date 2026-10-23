@@ -65,6 +65,10 @@ const comandos = criarResourceService({
   monitor,
   log: app.log,
   permitirComandos,
+  aoComandoConfirmado({ device_id, recurso_id }) {
+    // Comando físico confirmado > cancelar OFF antigo.
+    ruleEngine?.cancelarTimerFisico(device_id, recurso_id);
+  },
   nodoPermitido: env === "dev" ? nodoDev : null,
 });
 
@@ -108,6 +112,7 @@ app.log.info(
 app.addHook("onClose", async () => {
   await ruleScheduler?.parar();
   await monitor.parar();
+  await ruleEngine?.parar();
   logsServidor.parar();
   db.close();
 });

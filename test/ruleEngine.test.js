@@ -620,3 +620,145 @@ test("TOGGLE não executa com estado desconhecido", async () => {
     db.close();
   }
 });
+
+test("TOGGLEF inverte destino e corrige origem", async () => {
+  const { db, rules } = preparar();
+  const resources = criarResourceRepository(db);
+  const chamadas = [];
+
+  try {
+    resources.descobrir("GROW", [
+      { id: "R2", tipo: "RELE", nome: "Segundo relé" },
+    ]);
+    resources.atualizar("GROW", "R2", {
+      global_id: "LUZ_TESTE_R2",
+    });
+
+    resources.aplicarEvento("GROW", "R1", { estado: false });
+    resources.aplicarEvento("GROW", "R2", { estado: false });
+
+    rules.criar({
+      nome: "Teste TOGGLEF",
+      ativa: true,
+      escopo: "GLOBAL",
+      device_id: null,
+      quando: {
+        tipo: "EVENTO",
+        recurso: "LUZ_GROW",
+        evento: "TOGGLE",
+      },
+      acao: {
+        tipo: "ESTADO",
+        recurso: "LUZ_TESTE_R2",
+        comando: "TOGGLEF",
+      },
+    });
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      log: { info() {}, warn() {}, error() {} },
+      comandos: {
+        async executar(globalId, comando) {
+          chamadas.push({ globalId, comando });
+
+          const recurso = resources.buscarGlobal(globalId);
+          resources.aplicarEvento(recurso.device_id, recurso.recurso_id, {
+            estado: comando === "ON",
+          });
+
+          return { command_id: chamadas.length };
+        },
+      },
+    });
+
+    await engine.processarEvento(
+      {
+        origem: "GROW",
+        id: "R1",
+        evento: "TOGGLE",
+        device: { estado: 0 },
+      },
+      1,
+    );
+
+    assert.deepEqual(chamadas, [
+      { globalId: "LUZ_GROW", comando: "ON" },
+      { globalId: "LUZ_TESTE_R2", comando: "ON" },
+    ]);
+
+    await engine.parar();
+  } finally {
+    db.close();
+  }
+});
+
+test("TIMER executa OFF e permite cancelamento", async () => {
+  const { db, rules } = preparar();
+  const resources = criarResourceRepository(db);
+  const chamadas = [];
+
+  const dormir = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  try {
+    rules.criar({
+      nome: "Teste TIMER",
+      ativa: true,
+      escopo: "GLOBAL",
+      device_id: null,
+      quando: {
+        tipo: "EVENTO",
+        recurso: "BOTAO_GROW",
+        evento: "DUPCLICK",
+      },
+      acao: {
+        tipo: "TIMER",
+        recurso: "LUZ_GROW",
+        timer: 1,
+      },
+    });
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      log: { info() {}, warn() {}, error() {} },
+      comandos: {
+        async executar(globalId, comando) {
+          chamadas.push(comando);
+          resources.aplicarEvento("GROW", "R1", {
+            estado: comando === "ON",
+          });
+          return { command_id: chamadas.length };
+        },
+      },
+    });
+
+    const disparar = () =>
+      engine.processarEvento({
+        origem: "GROW",
+        id: "B1",
+        evento: "DUPCLICK",
+        device: {},
+      });
+
+    // Primeiro TIMER > ON seguido de OFF.
+    await disparar();
+    assert.deepEqual(chamadas, ["ON"]);
+
+    await dormir(1200);
+    assert.deepEqual(chamadas, ["ON", "OFF"]);
+
+    // Segundo TIMER > cancelamento antes do vencimento.
+    await disparar();
+    assert.deepEqual(chamadas, ["ON", "OFF", "ON"]);
+
+    assert.equal(engine.cancelarTimerFisico("GROW", "R1"), true);
+
+    await dormir(1200);
+    assert.deepEqual(chamadas, ["ON", "OFF", "ON"]);
+
+    await engine.parar();
+  } finally {
+    db.close();
+  }
+});

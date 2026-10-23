@@ -5,6 +5,7 @@ import {
   calcularEstadosBootGlobais,
 } from "./ruleEvaluator.js";
 import { horarioLocal } from "./ruleScheduler.js";
+import { criarRuleTimers } from "./ruleTimers.js";
 
 export function criarRuleEngine({
   db,
@@ -17,6 +18,69 @@ export function criarRuleEngine({
   const bootsEmAndamento = new Set();
 
   let filaAcoes = Promise.resolve();
+
+  // TIMER > executa OFF pela mesma fila dos comandos globais.
+  const timers = criarRuleTimers({
+    log,
+
+    aoVencer(timer, ativo) {
+      const tarefa = filaAcoes.then(async () => {
+        if (!ativo() || modo !== "execute" || !comandos) return;
+
+        const regra = rules.buscar(timer.regraId);
+        const recurso = resources.buscarGlobal(timer.globalId);
+
+        // Confirma revisão e identidade física antes do OFF.
+        if (
+          !regra?.ativa ||
+          regra.revision !== timer.revision ||
+          regra.escopo !== "GLOBAL" ||
+          regra.acao?.tipo !== "TIMER" ||
+          regra.acao.recurso !== timer.globalId ||
+          regra.acao.timer !== timer.segundos ||
+          recurso?.device_id !== timer.deviceId ||
+          recurso.recurso_id !== timer.recursoId
+        ) {
+          log.warn(
+            { module: "RULES", global_id: timer.globalId },
+            "[TIMER] Configuração alterada; OFF descartado",
+          );
+          return;
+        }
+
+        // Se o relé já está desligado, não há nada a fazer.
+        if (obterEstadoRele(timer.globalId) !== 1) {
+          log.info(
+            { module: "RULES", global_id: timer.globalId },
+            "[TIMER] OFF dispensado: estado não está confirmado como ON",
+          );
+          return;
+        }
+
+        if (!ativo()) return;
+
+        const resposta = await comandos.executar(timer.globalId, "OFF", {
+          device_id: timer.deviceId,
+          recurso_id: timer.recursoId,
+        });
+
+        log.info(
+          {
+            module: "RULES",
+            regra_id: timer.regraId,
+            command_id: resposta.command_id,
+          },
+          `[TIMER][EXECUTADA] ${timer.globalId} -> OFF`,
+        );
+      });
+
+      filaAcoes = tarefa.catch((err) => {
+        log.error({ module: "RULES", err }, "Falha no OFF agendado");
+      });
+
+      return tarefa;
+    },
+  });
 
   // Obtém o último valor confirmado de um recurso global.
   function obterValor(globalId) {
@@ -126,8 +190,11 @@ export function criarRuleEngine({
       }
 
       if (
-        tipo !== "ESTADO" ||
-        !["ON", "OFF", "TOGGLE", "FOLLOW"].includes(comando)
+        !(
+          (tipo === "ESTADO" &&
+            ["ON", "OFF", "TOGGLE", "FOLLOW", "TOGGLEF"].includes(comando)) ||
+          tipo === "TIMER"
+        )
       ) {
         log.warn(
           contexto,
@@ -144,6 +211,24 @@ export function criarRuleEngine({
       }
 
       let comandoFinal = comando;
+      let ajusteOrigem = null;
+      let tempoTimer = 0;
+
+      // TIMER > ON agora; OFF agendado após confirmação.
+      if (tipo === "TIMER") {
+        tempoTimer = plano.acao.timer;
+
+        if (
+          !Number.isInteger(tempoTimer) ||
+          tempoTimer < 1 ||
+          tempoTimer > 4294967295
+        ) {
+          log.warn(contexto, "TIMER inválido");
+          continue;
+        }
+
+        comandoFinal = "ON";
+      }
 
       // TOGGLE > inverte o estado confirmado do destino.
       if (comando === "TOGGLE") {
@@ -178,12 +263,53 @@ export function criarRuleEngine({
         comandoFinal = valor !== 0 ? "ON" : "OFF";
       }
 
+      // TOGGLEF > inverte destino e sincroniza a origem.
+      if (comando === "TOGGLEF") {
+        const estadoDestino = obterEstadoRele(recurso);
+        const origemGlobal = atual.quando.recurso;
+        const recursoOrigem = resources.buscarGlobal(origemGlobal);
+
+        const estadoOrigem = Object.hasOwn(valoresEvento, origemGlobal)
+          ? valoresEvento[origemGlobal]
+          : obterEstadoRele(origemGlobal);
+
+        if (
+          atual.quando.tipo !== "EVENTO" ||
+          estadoDestino === null ||
+          recursoOrigem?.tipo !== "RELE" ||
+          ![0, 1].includes(estadoOrigem)
+        ) {
+          log.warn(contexto, "TOGGLEF ignorado: estados ou origem inválidos");
+          continue;
+        }
+
+        const novoEstado = estadoDestino ? 0 : 1;
+        comandoFinal = novoEstado ? "ON" : "OFF";
+
+        if (origemGlobal !== recurso && estadoOrigem !== novoEstado) {
+          ajusteOrigem = {
+            recurso: origemGlobal,
+            device_id: recursoOrigem.device_id,
+            recurso_id: recursoOrigem.recurso_id,
+          };
+        }
+      }
+
       // Simulação > registra também o comando já resolvido.
       if (modo !== "execute") {
         log.info(
-          { ...contexto, comando_resolvido: comandoFinal },
+          {
+            ...contexto,
+            comando_resolvido: comandoFinal,
+            ajuste_origem: ajusteOrigem?.recurso ?? null,
+            timer_segundos: tempoTimer || null,
+          },
           `[SIMULACAO] Regra #${plano.regra_id}: ` +
-            `${recurso} -> ${comandoFinal} (${comando})`,
+            `${recurso} -> ${comandoFinal} (${tipo === "TIMER" ? "TIMER" : comando})` +
+            (ajusteOrigem
+              ? `, origem ${ajusteOrigem.recurso} -> ${comandoFinal}`
+              : "") +
+            (tempoTimer ? `, OFF em ${tempoTimer}s` : ""),
         );
         continue;
       }
@@ -194,10 +320,31 @@ export function criarRuleEngine({
       }
 
       try {
+        // TODO :: TOGGLEF dentro do try : se falahar não muda o destino > colocar fora do try?
+        // TOGGLEF > corrige a origem antes de alterar o destino.
+        if (ajusteOrigem) {
+          await comandos.executar(ajusteOrigem.recurso, comandoFinal, {
+            device_id: ajusteOrigem.device_id,
+            recurso_id: ajusteOrigem.recurso_id,
+          });
+        }
+
         const resultado = await comandos.executar(recurso, comandoFinal, {
           device_id: destino.device_id,
           recurso_id: destino.recurso_id,
         });
+
+        // TIMER > agenda OFF somente após ON confirmado.
+        if (tempoTimer > 0) {
+          timers.agendar({
+            deviceId: destino.device_id,
+            recursoId: destino.recurso_id,
+            globalId: recurso,
+            segundos: tempoTimer,
+            regraId: plano.regra_id,
+            revision: plano.revision,
+          });
+        }
 
         log.info(
           {
@@ -503,10 +650,26 @@ export function criarRuleEngine({
     }
   }
 
+  function cancelarTimerFisico(deviceId, recursoId) {
+    return timers.cancelar(deviceId, recursoId);
+  }
+
+  function cancelarTimersNodo(deviceId) {
+    timers.cancelarNodo(deviceId);
+  }
+
+  async function parar() {
+    timers.parar();
+    await filaAcoes;
+  }
+
   return {
     processarEvento,
     processarHorario,
     simularBoot,
     reconciliarBoot,
+    cancelarTimerFisico,
+    cancelarTimersNodo,
+    parar,
   };
 }

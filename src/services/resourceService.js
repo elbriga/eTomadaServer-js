@@ -23,6 +23,7 @@ export function criarResourceService({
   monitor,
   log,
   permitirComandos = false,
+  aoComandoConfirmado = null,
   nodoPermitido = null,
   enviarComando = enviarComandoRele,
 }) {
@@ -202,6 +203,23 @@ export function criarResourceService({
           "STATE_MISMATCH",
           409,
         );
+      }
+
+      // Comando confirmado > invalidar timers anteriores do relé.
+      if (aoComandoConfirmado) {
+        try {
+          aoComandoConfirmado({
+            device_id: recurso.device_id,
+            recurso_id: recurso.recurso_id,
+            global_id: recurso.global_id,
+            comando,
+          });
+        } catch (err) {
+          log.error(
+            { module: "RULES", err },
+            "Falha ao notificar comando confirmado",
+          );
+        }
       }
 
       log.info(

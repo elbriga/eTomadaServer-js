@@ -100,6 +100,9 @@ export default async function eventsRoutes(
 
       // Detector de boot > consultar snapshot imediatamente
       if (event.evento?.toUpperCase() === "BOOT" && event.id === "ETOMADA") {
+        // Reboot do nodo > descartar timers do ciclo anterior.
+        ruleEngine?.cancelarTimersNodo(event.origem);
+
         setImmediate(() => {
           monitor.consultar(event.origem).catch((erro) => {
             app.log.warn(
@@ -114,6 +117,15 @@ export default async function eventsRoutes(
       if (atualizado) {
         monitor.receberEvento(event.origem);
         commands.reconciliar(event.origem, event.id, device.estado, "event");
+      }
+
+      // Relé desligado fisicamente > cancelar desligamento agendado.
+      if (
+        atualizado &&
+        (device.estado === false || device.estado === 0) &&
+        resources.buscar(event.origem, event.id)?.tipo === "RELE"
+      ) {
+        ruleEngine?.cancelarTimerFisico(event.origem, event.id);
       }
 
       // Motor global: processamento separado do recebimento HTTP.
