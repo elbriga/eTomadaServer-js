@@ -405,3 +405,106 @@ test("boot: simula divergência sem executar comandos", () => {
     db.close();
   }
 });
+
+test("boot: restaura somente a divergência autorizada", async () => {
+  const { db, rules } = preparar();
+  const chamadas = [];
+
+  try {
+    const criarHorario = (hora, comando) =>
+      rules.criar({
+        nome: `Boot ${hora} ${comando}`,
+        ativa: true,
+        escopo: "GLOBAL",
+        device_id: null,
+        quando: { tipo: "HORARIO", hora, minuto: 0 },
+        acao: {
+          tipo: "ESTADO",
+          recurso: "LUZ_GROW",
+          comando,
+        },
+      });
+
+    criarHorario(4, "ON");
+    const off = criarHorario(23, "OFF");
+
+    const log = {
+      info() {},
+      warn() {},
+      error() {},
+    };
+
+    const comandos = {
+      async executar(globalId, comando, esperado) {
+        chamadas.push({ globalId, comando, esperado });
+        return { command_id: 123 };
+      },
+    };
+
+    const engine = criarRuleEngine({
+      db,
+      log,
+      comandos,
+      modo: "execute",
+      modoBoot: "execute",
+      regraBootId: off.id,
+      alvoBootId: "LUZ_GROW",
+    });
+
+    const snapshot = (estado) => ({
+      device_id: "GROW",
+      uptime: 1500,
+      recursos: [
+        {
+          id: "R1",
+          tipo: "RELE",
+          device: { estado },
+        },
+      ],
+    });
+
+    // 02:00 em São Paulo: última regra foi OFF às 23:00.
+    const instante = new Date("2026-10-23T05:00:00Z");
+
+    const resultado = await engine.reconciliarBoot(
+      "GROW",
+      snapshot(1),
+      instante,
+    );
+
+    assert.equal(resultado[0].situacao, "DIVERGENTE");
+
+    assert.deepEqual(chamadas, [
+      {
+        globalId: "LUZ_GROW",
+        comando: "OFF",
+        esperado: {
+          device_id: "GROW",
+          recurso_id: "R1",
+        },
+      },
+    ]);
+
+    // Estado já correto: não repete o comando.
+    await engine.reconciliarBoot("GROW", snapshot(0), instante);
+
+    assert.equal(chamadas.length, 1);
+
+    // Destino não autorizado: não executa.
+    const bloqueado = criarRuleEngine({
+      db,
+      log,
+      comandos,
+      modo: "execute",
+      modoBoot: "execute",
+      regraBootId: off.id,
+      alvoBootId: "OUTRO_RECURSO",
+    });
+
+    await bloqueado.reconciliarBoot("GROW", snapshot(1), instante);
+
+    assert.equal(chamadas.length, 1);
+  } finally {
+    db.close();
+  }
+});

@@ -49,7 +49,7 @@ const monitor = criarNodeMonitor({
   db,
   log: app.log,
   aoReiniciar({ deviceId, snapshot }) {
-    ruleEngine?.simularBoot(deviceId, snapshot);
+    return ruleEngine?.reconciliarBoot(deviceId, snapshot);
   },
 });
 
@@ -80,6 +80,24 @@ if (modoRegras === "execute") {
   if (!alvoId) throw new Error("RULE_ENGINE_TARGET_GLOBAL_ID obrigatório");
 }
 
+// Configuração independente da restauração após reboot.
+const modoBoot = process.env.RULE_BOOT_MODE ?? "simulate";
+const regraBootId = Number(process.env.RULE_BOOT_RULE_ID);
+const alvoBootId = process.env.RULE_BOOT_TARGET_GLOBAL_ID ?? null;
+
+if (!["off", "simulate", "execute"].includes(modoBoot))
+  throw new Error("RULE_BOOT_MODE inválido");
+
+if (modoBoot === "execute") {
+  if (modoRegras !== "execute" || !permitirComandos)
+    throw new Error("Execução física de boot não permitida");
+
+  if (!Number.isSafeInteger(regraBootId) || regraBootId < 1)
+    throw new Error("RULE_BOOT_RULE_ID inválido");
+
+  if (!alvoBootId) throw new Error("RULE_BOOT_TARGET_GLOBAL_ID obrigatório");
+}
+
 ruleEngine =
   modoRegras === "off"
     ? null
@@ -90,6 +108,9 @@ ruleEngine =
         modo: modoRegras,
         regraId,
         alvoId,
+        modoBoot,
+        regraBootId,
+        alvoBootId,
       });
 
 const modoHorario = process.env.RULE_SCHEDULE_MODE ?? "off";

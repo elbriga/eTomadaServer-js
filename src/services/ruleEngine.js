@@ -1,7 +1,9 @@
 import { criarRuleRepository } from "../repositories/ruleRepository.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
-import { avaliarRegrasGlobais } from "./ruleEvaluator.js";
-import { calcularEstadosBootGlobais } from "./ruleEvaluator.js";
+import {
+  avaliarRegrasGlobais,
+  calcularEstadosBootGlobais,
+} from "./ruleEvaluator.js";
 import { horarioLocal } from "./ruleScheduler.js";
 
 export function criarRuleEngine({
@@ -11,9 +13,13 @@ export function criarRuleEngine({
   modo = "simulate",
   regraId = null,
   alvoId = null,
+  modoBoot = "simulate",
+  regraBootId = null,
+  alvoBootId = null,
 }) {
   const rules = criarRuleRepository(db);
   const resources = criarResourceRepository(db);
+  const bootsEmAndamento = new Set();
 
   // Obtém o último valor confirmado de um recurso global.
   function obterValor(globalId) {
@@ -246,7 +252,12 @@ export function criarRuleEngine({
     return acoes;
   }
 
-  function simularBoot(deviceId, snapshot, instante = new Date()) {
+  function simularBoot(
+    deviceId,
+    snapshot,
+    instante = new Date(),
+    registrar = true,
+  ) {
     const { hora, minuto } = horarioLocal(instante);
 
     // Nesta etapa, não restaurar regras condicionais.
@@ -311,20 +322,147 @@ export function criarRuleEngine({
 
       resultados.push(resultado);
 
-      log.info(
-        { module: "RULES", ...resultado },
-        `[BOOT][SIMULACAO] ${deviceId}/${globalId}: ` +
-          `esperado=${esperado}, observado=${observado}, ` +
-          `situacao=${situacao}`,
-      );
+      if (registrar)
+        log.info(
+          { module: "RULES", ...resultado },
+          `[BOOT][SIMULACAO] ${deviceId}/${globalId}: ` +
+            `esperado=${esperado}, observado=${observado}, ` +
+            `situacao=${situacao}`,
+        );
     }
 
     return resultados;
+  }
+
+  async function reconciliarBoot(deviceId, snapshot, instante = new Date()) {
+    if (modoBoot === "off") return [];
+
+    const chave = deviceId.toUpperCase();
+
+    // Impede duas reconciliações simultâneas do mesmo nodo.
+    if (bootsEmAndamento.has(chave)) return [];
+
+    // Execução física exige um snapshot válido do nodo reiniciado.
+    if (
+      modoBoot === "execute" &&
+      (snapshot?.device_id?.toUpperCase() !== chave ||
+        !Number.isInteger(snapshot.uptime))
+    ) {
+      log.warn(
+        { module: "RULES", device_id: deviceId },
+        "[BOOT] Snapshot inválido para restauração",
+      );
+      return [];
+    }
+
+    bootsEmAndamento.add(chave);
+
+    try {
+      // Calcula os estados desejados usando a busca circular.
+      const resultados = simularBoot(
+        deviceId,
+        snapshot,
+        instante,
+        modoBoot !== "execute",
+      );
+
+      if (modoBoot !== "execute") return resultados;
+
+      if (modo !== "execute" || !comandos) {
+        log.warn(
+          { module: "RULES", device_id: deviceId },
+          "[BOOT] Execução física não permitida",
+        );
+        return resultados;
+      }
+
+      for (const resultado of resultados) {
+        // Restaura somente a regra e o recurso autorizados.
+        if (
+          resultado.regra_id !== regraBootId ||
+          resultado.global_id !== alvoBootId
+        )
+          continue;
+
+        const contexto = {
+          module: "RULES",
+          ...resultado,
+        };
+
+        if (resultado.situacao !== "DIVERGENTE") {
+          log.info(
+            contexto,
+            `[BOOT] ${deviceId}/${resultado.global_id}: ` +
+              `sem restauração (${resultado.situacao})`,
+          );
+          continue;
+        }
+
+        const comando = resultado.esperado === 1 ? "ON" : "OFF";
+
+        // Confirma que a regra não foi editada ou desativada.
+        const regra = rules.buscar(resultado.regra_id);
+
+        if (
+          !regra?.ativa ||
+          regra.escopo !== "GLOBAL" ||
+          regra.revision !== resultado.revision ||
+          regra.quando?.tipo !== "HORARIO" ||
+          regra.quando.check ||
+          regra.acao?.tipo !== "ESTADO" ||
+          regra.acao.recurso !== resultado.global_id ||
+          regra.acao.comando !== comando
+        ) {
+          log.warn(contexto, "[BOOT] Regra alterada; restauração cancelada");
+          continue;
+        }
+
+        // Confirma que o destino ainda pertence ao nodo reiniciado.
+        const recurso = resources.buscarGlobal(resultado.global_id);
+
+        if (
+          recurso?.device_id !== resultado.device_id ||
+          recurso.recurso_id !== resultado.recurso_id
+        ) {
+          log.warn(contexto, "[BOOT] Destino alterado; restauração cancelada");
+          continue;
+        }
+
+        try {
+          const resposta = await comandos.executar(
+            resultado.global_id,
+            comando,
+            {
+              device_id: resultado.device_id,
+              recurso_id: resultado.recurso_id,
+            },
+          );
+
+          log.info(
+            {
+              ...contexto,
+              command_id: resposta.command_id,
+            },
+            `[BOOT][EXECUTADA] ${deviceId}/${resultado.global_id} -> ${comando}`,
+          );
+        } catch (err) {
+          log.error(
+            { ...contexto, err },
+            `[BOOT][FALHA] ${deviceId}/${resultado.global_id} -> ${comando}`,
+          );
+        }
+      }
+
+      return resultados;
+    } finally {
+      bootsEmAndamento.delete(chave);
+    }
   }
 
   return {
     processarEvento,
     processarHorario,
     simularBoot,
+    reconciliarBoot,
   };
 }

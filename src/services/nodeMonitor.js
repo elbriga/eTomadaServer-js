@@ -21,6 +21,7 @@ export function criarNodeMonitor({
   const commands = criarCommandRepository(db);
   const estados = new Map();
   const pendentes = new Map();
+  const reconciliacoesBoot = new Set();
 
   let ativo = false;
   let timer = null;
@@ -77,8 +78,22 @@ export function criarNodeMonitor({
       "Reinicialização de nodo detectada",
     );
 
+    // Executa a reconciliação e acompanha operações assíncronas.
     try {
-      aoReiniciar?.({ deviceId, snapshot, origem });
+      const resultado = aoReiniciar?.({ deviceId, snapshot, origem });
+
+      if (resultado && typeof resultado.then === "function") {
+        const tarefa = Promise.resolve(resultado)
+          .catch((err) => {
+            log.error(
+              { module: "RULES", err, device_id: deviceId },
+              "Falha na reconciliação após reboot",
+            );
+          })
+          .finally(() => reconciliacoesBoot.delete(tarefa));
+
+        reconciliacoesBoot.add(tarefa);
+      }
     } catch (err) {
       log.error(
         { module: "RULES", err, device_id: deviceId },
@@ -362,6 +377,7 @@ export function criarNodeMonitor({
 
       if (rodadaAtual) await rodadaAtual;
       await Promise.allSettled([...pendentes.values()]);
+      await Promise.allSettled([...reconciliacoesBoot]);
     },
   };
 }
