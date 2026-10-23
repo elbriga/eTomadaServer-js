@@ -1,4 +1,4 @@
-const JANELA_RECONCILIACAO = 120; // segundos
+export const JANELA_RECONCILIACAO = 120; // segundos
 
 function estadoBooleano(valor) {
   if (valor === true || valor === 1) return true;

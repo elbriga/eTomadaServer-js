@@ -181,9 +181,9 @@ export function criarResourceService({
 
       const resultado = commands.confirmarResposta(registro.id, estado);
 
-      const esperado = comando === "ON";
+      const estadoEsperado = comando === "ON";
 
-      if (estado !== esperado) {
+      if (estado !== estadoEsperado) {
         throw new ResourceCommandError(
           `Estado divergente: solicitado ${comando}, confirmado ${estado ? "ON" : "OFF"}`,
           "STATE_MISMATCH",

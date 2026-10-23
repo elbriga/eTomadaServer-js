@@ -4,7 +4,10 @@ import {
   ResourceCommandError,
 } from "../services/resourceService.js";
 import { NodeClientError } from "../devices/nodeClient.js";
-import { criarCommandRepository } from "../repositories/commandRepository.js";
+import {
+  criarCommandRepository,
+  JANELA_RECONCILIACAO,
+} from "../repositories/commandRepository.js";
 
 export default async function resourcesRoutes(
   app,
@@ -163,7 +166,11 @@ export default async function resourcesRoutes(
       );
 
       const pendente =
-        ultimo && ["pending", "uncertain"].includes(ultimo.status);
+        ultimo &&
+        (ultimo.status === "pending" ||
+          (ultimo.status === "uncertain" &&
+            ultimo.created_at >=
+              Math.floor(Date.now() / 1000) - JANELA_RECONCILIACAO));
 
       return {
         global_id: recurso.global_id,
