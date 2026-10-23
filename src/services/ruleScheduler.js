@@ -114,7 +114,7 @@ export function criarRuleScheduler({
 
     log.info(
       { module: "RULES", fuso: "America/Sao_Paulo" },
-      "Agendador de regras iniciado (simulação)",
+      "Agendador de regras iniciado",
     );
   }
 

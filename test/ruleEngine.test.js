@@ -245,3 +245,85 @@ test("executa somente a regra e o destino autorizados", async () => {
     db.close();
   }
 });
+
+test("horário: simulação e execução autorizada", async () => {
+  const { db, rules } = preparar();
+  const chamadas = [];
+
+  try {
+    const criarHorario = (nome, comando) =>
+      rules.criar({
+        nome,
+        ativa: true,
+        escopo: "GLOBAL",
+        device_id: null,
+        quando: {
+          tipo: "HORARIO",
+          hora: 4,
+          minuto: 0,
+        },
+        acao: {
+          tipo: "ESTADO",
+          recurso: "LUZ_GROW",
+          comando,
+        },
+      });
+
+    const autorizada = criarHorario("Teste OFF", "OFF");
+    criarHorario("Outra regra ON", "ON");
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      regraId: 1, // Regra de evento existente
+      alvoId: "LUZ_GROW",
+      comandos: {
+        async executar(recurso, comando) {
+          chamadas.push({ recurso, comando });
+          return { command_id: 123 };
+        },
+      },
+      log: {
+        info() {},
+        warn() {},
+        error() {},
+      },
+    });
+
+    // Simulação avalia ambas, sem comandar hardware.
+    const simuladas = await engine.processarHorario({
+      hora: 4,
+      minuto: 0,
+    });
+
+    assert.equal(simuladas.length, 2);
+    assert.equal(chamadas.length, 0);
+
+    // Execução apenas da regra autorizada.
+    const executadas = await engine.processarHorario(
+      { hora: 4, minuto: 0 },
+      {
+        executar: true,
+        regraAutorizada: autorizada.id,
+        destinoAutorizado: "LUZ_GROW",
+      },
+    );
+
+    assert.equal(executadas.length, 1);
+    assert.deepEqual(chamadas, [{ recurso: "LUZ_GROW", comando: "OFF" }]);
+
+    // Destino diferente: comando bloqueado.
+    await engine.processarHorario(
+      { hora: 4, minuto: 0 },
+      {
+        executar: true,
+        regraAutorizada: autorizada.id,
+        destinoAutorizado: "OUTRO_RECURSO",
+      },
+    );
+
+    assert.equal(chamadas.length, 1);
+  } finally {
+    db.close();
+  }
+});

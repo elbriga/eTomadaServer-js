@@ -86,7 +86,7 @@ const ruleEngine =
 
 const modoHorario = process.env.RULE_SCHEDULE_MODE ?? "off";
 
-if (!["off", "simulate"].includes(modoHorario)) {
+if (!["off", "simulate", "execute"].includes(modoHorario)) {
   throw new Error("RULE_SCHEDULE_MODE inválido");
 }
 
@@ -94,13 +94,43 @@ if (modoHorario === "simulate" && !ruleEngine) {
   throw new Error("Agendador exige um ruleEngine ativo");
 }
 
+const regraHorarioId = Number(process.env.RULE_SCHEDULE_RULE_ID);
+const alvoHorarioId = process.env.RULE_SCHEDULE_TARGET_GLOBAL_ID ?? null;
+
+if (modoHorario === "execute") {
+  if (modoRegras !== "execute" || !permitirComandos)
+    throw new Error("Execução física de horários não permitida");
+
+  if (!Number.isSafeInteger(regraHorarioId) || regraHorarioId < 1)
+    throw new Error("RULE_SCHEDULE_RULE_ID inválido");
+
+  if (!alvoHorarioId)
+    throw new Error("RULE_SCHEDULE_TARGET_GLOBAL_ID obrigatório");
+}
+
 const ruleScheduler =
-  modoHorario === "simulate"
+  modoHorario !== "off"
     ? criarRuleScheduler({
-        processarHorario: (horario) => ruleEngine.processarHorario(horario),
+        processarHorario: (horario) =>
+          ruleEngine.processarHorario(horario, {
+            executar: modoHorario === "execute",
+            regraAutorizada: regraHorarioId,
+            destinoAutorizado: alvoHorarioId,
+          }),
         log: app.log,
       })
     : null;
+
+if (modoHorario === "execute") {
+  app.log.warn(
+    {
+      module: "RULES",
+      regra_id: regraHorarioId,
+      alvo: alvoHorarioId,
+    },
+    "Execução física de regras por horário habilitada",
+  );
+}
 
 app.log.info(
   {

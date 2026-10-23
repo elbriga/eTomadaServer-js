@@ -90,7 +90,11 @@ export function criarRuleEngine({
   async function registrarAcoes(
     acoes,
     origem,
-    { somenteSimulacao = false } = {},
+    {
+      somenteSimulacao = false,
+      regraAutorizada = regraId,
+      destinoAutorizado = alvoId,
+    } = {},
   ) {
     for (const plano of acoes) {
       const { tipo, recurso, comando } = plano.acao;
@@ -114,9 +118,10 @@ export function criarRuleEngine({
       // Primeira etapa: apenas comandos ON/OFF
       // e somente para o destino autorizado.
       if (
+        plano.regra_id !== regraAutorizada ||
         tipo !== "ESTADO" ||
         !["ON", "OFF"].includes(comando) ||
-        recurso !== alvoId ||
+        recurso !== destinoAutorizado ||
         !comandos
       ) {
         log.warn(contexto, "Ação não autorizada para execução");
@@ -202,10 +207,18 @@ export function criarRuleEngine({
     return acoes;
   }
 
-  async function processarHorario({ hora, minuto }) {
+  async function processarHorario(
+    { hora, minuto },
+    { executar = false, regraAutorizada = null, destinoAutorizado = null } = {},
+  ) {
     const regras = rules
       .listar({ escopo: "GLOBAL" })
-      .filter((regra) => regra.ativa && regra.quando?.tipo === "HORARIO");
+      .filter(
+        (regra) =>
+          regra.ativa &&
+          regra.quando?.tipo === "HORARIO" &&
+          (!executar || regra.id === regraAutorizada),
+      );
 
     const valores = obterValores(regras);
 
@@ -223,7 +236,9 @@ export function criarRuleEngine({
 
     // Nesta etapa, horário nunca executa comandos físicos.
     await registrarAcoes(acoes, origem, {
-      somenteSimulacao: true,
+      somenteSimulacao: !executar,
+      regraAutorizada,
+      destinoAutorizado,
     });
 
     return acoes;
