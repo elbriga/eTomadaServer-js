@@ -164,7 +164,7 @@ await app.register(resourcesRoutes, {
 await app.register(screensRoutes, { db });
 await app.register(nodesRoutes, { db, monitor });
 await app.register(groupsRoutes, { db, comandos, permitirComandos });
-await app.register(rulesRoutes, { db });
+await app.register(rulesRoutes, { db, monitor });
 
 let encerrando = false;
 

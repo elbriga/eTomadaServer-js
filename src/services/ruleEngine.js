@@ -6,6 +6,7 @@ import {
 } from "./ruleEvaluator.js";
 import { horarioLocal } from "./ruleScheduler.js";
 import { criarRuleTimers } from "./ruleTimers.js";
+import { criarRuleLoopGuard } from "./ruleLoopGuard.js";
 
 export function criarRuleEngine({
   db,
@@ -15,6 +16,7 @@ export function criarRuleEngine({
 }) {
   const rules = criarRuleRepository(db);
   const resources = criarResourceRepository(db);
+  const loopGuard = criarRuleLoopGuard();
   const bootsEmAndamento = new Set();
 
   let filaAcoes = Promise.resolve();
@@ -164,6 +166,24 @@ export function criarRuleEngine({
     };
 
     return avaliarRegrasGlobais(regras, evento, valores);
+  }
+
+  // Proteção contra cascatas de comandos entre regras.
+  function permitirAcaoFisica(destinos, contexto) {
+    const resultado = loopGuard.permitir(destinos);
+
+    if (!resultado.permitido && resultado.novoBloqueio) {
+      log.warn(
+        {
+          ...contexto,
+          recurso_fisico: resultado.chave,
+        },
+        `[LOOP] Limite de comandos atingido em ${resultado.chave}; ` +
+          "bloqueando automações por 30 segundos",
+      );
+    }
+
+    return resultado.permitido;
   }
 
   async function executarAcoes(acoes, origem, valoresEvento = {}) {
@@ -318,6 +338,17 @@ export function criarRuleEngine({
         log.warn(contexto, "Executor de comandos indisponível");
         continue;
       }
+
+      // Verifica os relés envolvidos antes de iniciar comandos físicos.
+      const destinosFisicos = [`${destino.device_id}/${destino.recurso_id}`];
+
+      if (ajusteOrigem) {
+        destinosFisicos.push(
+          `${ajusteOrigem.device_id}/${ajusteOrigem.recurso_id}`,
+        );
+      }
+
+      if (!permitirAcaoFisica(destinosFisicos, contexto)) continue;
 
       try {
         // TODO :: TOGGLEF dentro do try : se falahar não muda o destino > colocar fora do try?
@@ -616,6 +647,16 @@ export function criarRuleEngine({
           recurso.recurso_id !== resultado.recurso_id
         ) {
           log.warn(contexto, "[BOOT] Destino alterado; restauração cancelada");
+          continue;
+        }
+
+        // Reconciliação > respeitar o limite de comandos do relé.
+        if (
+          !permitirAcaoFisica(
+            [`${recurso.device_id}/${recurso.recurso_id}`],
+            contexto,
+          )
+        ) {
           continue;
         }
 

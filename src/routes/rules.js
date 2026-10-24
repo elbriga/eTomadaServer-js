@@ -1,4 +1,8 @@
 import { criarRuleService, RuleError } from "../services/ruleService.js";
+import { criarNodeRepository } from "../repositories/nodeRepository.js";
+import { NodeClientError } from "../devices/nodeClient.js";
+import { compararRegrasLocais } from "../services/ruleSyncCompare.js";
+import { montarPacoteRegrasLocais } from "../services/ruleSyncPayload.js";
 
 const deviceIdSchema = {
   type: "string",
@@ -63,8 +67,9 @@ function responder(reply, operacao) {
   }
 }
 
-export default async function rulesRoutes(app, { db }) {
+export default async function rulesRoutes(app, { db, monitor }) {
   const rules = criarRuleService(db);
+  const nodes = criarNodeRepository(db);
 
   app.get(
     "/api/rules",
@@ -129,6 +134,128 @@ export default async function rulesRoutes(app, { db }) {
       }
 
       return reply.code(204).send();
+    },
+  );
+
+  // Regras locais > comparar SQLite com configuração ativa do Full.
+  app.get(
+    "/api/nodes/:device_id/rules/compare",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["device_id"],
+          properties: {
+            device_id: deviceIdSchema,
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const node = nodes.buscar(request.params.device_id);
+
+      if (!node)
+        return reply.code(404).send({
+          detail: "Nodo não cadastrado",
+        });
+
+      if (node.api?.toUpperCase() !== "FULL")
+        return reply.code(400).send({
+          detail: "Comparação disponível somente para nodos Full",
+        });
+
+      let resposta;
+
+      try {
+        resposta = await monitor.consultar(node.device_id);
+      } catch (erro) {
+        if (!(erro instanceof NodeClientError)) throw erro;
+
+        return reply.code(erro.statusCode).send({
+          detail: erro.message,
+          code: erro.code,
+        });
+      }
+
+      // Não comparar um GET invalidado por atualização mais recente.
+      if (resposta.desatualizado)
+        return reply.code(409).send({
+          detail: "Snapshot desatualizado; repita a consulta",
+        });
+
+      const snapshot = resposta.snapshot;
+
+      if (
+        snapshot?.api?.toUpperCase() !== "FULL" ||
+        snapshot?.device_id?.toUpperCase() !== node.device_id.toUpperCase() ||
+        !Array.isArray(snapshot.regras)
+      ) {
+        return reply.code(502).send({
+          detail: "Snapshot de regras inválido",
+        });
+      }
+
+      const locais = rules.listar({
+        escopo: "LOCAL",
+        device_id: node.device_id,
+      });
+
+      let comparacao;
+
+      try {
+        comparacao = compararRegrasLocais(locais, snapshot.regras);
+      } catch (erro) {
+        app.log.warn(
+          { module: "RULES", err: erro, device_id: node.device_id },
+          "Falha ao comparar regras locais",
+        );
+
+        return reply.code(502).send({
+          detail: "Não foi possível comparar as regras",
+        });
+      }
+
+      return {
+        device_id: node.device_id,
+        uptime: snapshot.uptime,
+        ...comparacao,
+      };
+    },
+  );
+
+  // Regras locais > conjunto autoritativo que será enviado ao Full.
+  app.get(
+    "/api/nodes/:device_id/rules/desired",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["device_id"],
+          properties: {
+            device_id: deviceIdSchema,
+          },
+        },
+      },
+    },
+    (request, reply) => {
+      const node = nodes.buscar(request.params.device_id);
+
+      if (!node)
+        return reply.code(404).send({
+          detail: "Nodo não cadastrado",
+        });
+
+      if (node.api?.toUpperCase() !== "FULL")
+        return reply.code(400).send({
+          detail: "Sincronização disponível somente para nodos Full",
+        });
+
+      const locais = rules.listar({
+        escopo: "LOCAL",
+        device_id: node.device_id,
+      });
+
+      return montarPacoteRegrasLocais(node.device_id, locais);
     },
   );
 }

@@ -762,3 +762,71 @@ test("TIMER executa OFF e permite cancelamento", async () => {
     db.close();
   }
 });
+
+test("motor interrompe cascata de TOGGLE no mesmo relé", async () => {
+  const { db, rules } = preparar();
+  const resources = criarResourceRepository(db);
+  const chamadas = [];
+  const avisos = [];
+
+  try {
+    resources.aplicarEvento("GROW", "R1", {
+      estado: false,
+    });
+
+    rules.criar({
+      nome: "Teste proteção contra loop",
+      ativa: true,
+      escopo: "GLOBAL",
+      device_id: null,
+      quando: {
+        tipo: "EVENTO",
+        recurso: "BOTAO_GROW",
+        evento: "DUPCLICK",
+      },
+      acao: {
+        tipo: "ESTADO",
+        recurso: "LUZ_GROW",
+        comando: "TOGGLE",
+      },
+    });
+
+    const engine = criarRuleEngine({
+      db,
+      modo: "execute",
+      log: {
+        info() {},
+        warn: (dados, mensagem) => avisos.push(mensagem),
+        error() {},
+      },
+      comandos: {
+        async executar(globalId, comando) {
+          chamadas.push(comando);
+
+          resources.aplicarEvento("GROW", "R1", {
+            estado: comando === "ON",
+          });
+
+          return { command_id: chamadas.length };
+        },
+      },
+    });
+
+    // Simula uma sequência rápida de eventos.
+    for (let i = 0; i < 12; i++) {
+      await engine.processarEvento({
+        origem: "GROW",
+        id: "B1",
+        evento: "DUPCLICK",
+        device: {},
+      });
+    }
+
+    assert.equal(chamadas.length, 8);
+    assert.equal(avisos.filter((msg) => msg.includes("[LOOP]")).length, 1);
+
+    await engine.parar();
+  } finally {
+    db.close();
+  }
+});
