@@ -8,16 +8,17 @@ import logsRoutes from "./routes/logs.js";
 import eventsRoutes from "./routes/events.js";
 import resourcesRoutes from "./routes/resources.js";
 import screensRoutes from "./routes/screens.js";
-import { registrarAuth } from "./auth.js";
 import nodesRoutes from "./routes/nodes.js";
+import groupsRoutes from "./routes/groups.js";
+import rulesRoutes from "./routes/rules.js";
+import { registrarAuth } from "./auth.js";
 import { criarNodeMonitor } from "./services/nodeMonitor.js";
 import { criarLogRepository } from "./repositories/logRepository.js";
 import { criarServerLogStream } from "./services/serverLogStream.js";
-import groupsRoutes from "./routes/groups.js";
 import { criarResourceService } from "./services/resourceService.js";
-import rulesRoutes from "./routes/rules.js";
 import { criarRuleEngine } from "./services/ruleEngine.js";
 import { criarRuleScheduler } from "./services/ruleScheduler.js";
+import { criarRuleSyncService } from "./services/ruleSyncService.js";
 
 const env = process.env.ETOMADA_ENV;
 const host = process.env.HOST;
@@ -49,12 +50,18 @@ registrarAuth(app);
 const db = abrirBanco();
 
 let ruleEngine = null;
+let ruleSync = null;
+
 const monitor = criarNodeMonitor({
   db,
   log: app.log,
   // Reboot de nodo > reconciliar regras globais.
   aoReiniciar({ deviceId, snapshot }) {
     return ruleEngine?.reconciliarBoot(deviceId, snapshot);
+  },
+  // Snapshot > conferir regras locais administradas pelo servidor.
+  aoSnapshot({ deviceId, snapshot }) {
+    void ruleSync?.solicitar(deviceId, snapshot);
   },
 });
 
@@ -109,9 +116,33 @@ app.log.info(
   "Motor global configurado",
 );
 
+// Sincronização local > controle independente do motor global.
+const modoSync = process.env.RULE_SYNC_MODE ?? "off";
+const nodoSync = process.env.RULE_SYNC_NODE ?? null;
+
+if (!["off", "simulate", "execute"].includes(modoSync))
+  throw new Error("RULE_SYNC_MODE inválido");
+
+ruleSync = criarRuleSyncService({
+  db,
+  log: app.log,
+  modo: modoSync,
+  somenteNodo: nodoSync,
+});
+
+app.log.info(
+  {
+    module: "RULES",
+    modo: modoSync,
+    nodo: nodoSync,
+  },
+  "Sincronização de regras locais configurada",
+);
+
 app.addHook("onClose", async () => {
   await ruleScheduler?.parar();
   await monitor.parar();
+  await ruleSync?.parar();
   await ruleEngine?.parar();
   logsServidor.parar();
   db.close();
@@ -164,7 +195,7 @@ await app.register(resourcesRoutes, {
 await app.register(screensRoutes, { db });
 await app.register(nodesRoutes, { db, monitor });
 await app.register(groupsRoutes, { db, comandos, permitirComandos });
-await app.register(rulesRoutes, { db, monitor });
+await app.register(rulesRoutes, { db, monitor, ruleSync });
 
 let encerrando = false;
 

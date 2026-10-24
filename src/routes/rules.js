@@ -67,9 +67,23 @@ function responder(reply, operacao) {
   }
 }
 
-export default async function rulesRoutes(app, { db, monitor }) {
+export default async function rulesRoutes(
+  app,
+  { db, monitor, ruleSync = null },
+) {
   const rules = criarRuleService(db);
   const nodes = criarNodeRepository(db);
+
+  // CRUD > solicitar sincronização sem bloquear a resposta HTTP.
+  function avisarAlteracao(...deviceIds) {
+    const unicos = new Set(deviceIds.filter(Boolean));
+
+    for (const deviceId of unicos) {
+      setImmediate(() => {
+        void ruleSync?.solicitar(deviceId);
+      });
+    }
+  }
 
   app.get(
     "/api/rules",
@@ -107,6 +121,7 @@ export default async function rulesRoutes(app, { db, monitor }) {
   app.post("/api/rules", { schema: { body: criarBody } }, (request, reply) =>
     responder(reply, () => {
       const regra = rules.criar(request.body);
+      if (regra.escopo === "LOCAL") avisarAlteracao(regra.device_id);
       return reply.code(201).send(regra);
     }),
   );
@@ -120,18 +135,34 @@ export default async function rulesRoutes(app, { db, monitor }) {
       },
     },
     (request, reply) =>
-      responder(reply, () => rules.atualizar(request.params.id, request.body)),
+      responder(reply, () => {
+        const anterior = rules.buscar(request.params.id);
+        const atualizada = rules.atualizar(request.params.id, request.body);
+
+        // Mudança de escopo ou nodo > corrigir os dois conjuntos.
+        avisarAlteracao(
+          anterior?.escopo === "LOCAL" ? anterior.device_id : null,
+          atualizada.escopo === "LOCAL" ? atualizada.device_id : null,
+        );
+
+        return atualizada;
+      }),
   );
 
   app.delete(
     "/api/rules/:id",
     { schema: { params: idParams } },
     (request, reply) => {
+      const anterior = rules.buscar(request.params.id);
+
       if (!rules.excluir(request.params.id)) {
         return reply.code(404).send({
           detail: "Regra não encontrada",
         });
       }
+
+      // Exclusão > enviar conjunto sem a regra removida.
+      if (anterior?.escopo === "LOCAL") avisarAlteracao(anterior.device_id);
 
       return reply.code(204).send();
     },

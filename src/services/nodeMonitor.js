@@ -10,6 +10,7 @@ export function criarNodeMonitor({
   db,
   log,
   aoReiniciar = null,
+  aoSnapshot = null,
   intervaloMs = 30_000,
   timeoutMs = 2_000,
   concorrencia = 4,
@@ -184,6 +185,13 @@ export function criarNodeMonitor({
 
     observarUptime(deviceId, resultado.snapshot, "poll");
 
+    // Snapshot aceito > verificar configuração local do Full.
+    aoSnapshot?.({
+      deviceId,
+      snapshot: resultado.snapshot,
+      origem: "poll",
+    });
+
     const node = nodes.buscar(deviceId);
 
     if (node?.enabled && anterior !== "online") {
@@ -316,6 +324,13 @@ export function criarNodeMonitor({
     s.origem = "push";
 
     observarUptime(node.device_id, snapshot, "push");
+
+    // Snapshot espontâneo > verificar regras sem novo GET.
+    aoSnapshot?.({
+      deviceId: node.device_id,
+      snapshot,
+      origem: "push",
+    });
 
     if (node.enabled && anterior !== "online") {
       log.info(
