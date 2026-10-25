@@ -153,13 +153,13 @@ app.addHook("onClose", async () => {
   db.close();
 });
 
-app.get("/health", async () => ({
+app.get("/api/health", async () => ({
   ok: true,
   service: "eTomadaServer",
   environment: env,
 }));
 
-app.get("/health/db", async () => {
+app.get("/api/health/db", async () => {
   const tables = {};
 
   for (const tabela of TABELAS) {
