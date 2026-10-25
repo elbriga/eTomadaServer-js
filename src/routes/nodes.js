@@ -24,6 +24,24 @@ export default async function nodesRoutes(app, { db, monitor }) {
   // GET /api/nodes
   app.get("/api/nodes", () => nodes.listar());
 
+  // Dados consolidados para o painel de nodos
+  app.get("/api/nodes/overview", () =>
+    nodes.listarComSnapshot().map(({ snapshot_json, ...node }) => {
+      const estado = monitor.obterStatus(node.device_id);
+      const snapshotSalvo = JSON.parse(snapshot_json ?? "null");
+
+      return {
+        ...node,
+        status: estado?.status ?? (node.enabled ? "unknown" : "disabled"),
+        last_seen_at: estado?.last_seen_at ?? node.last_seen_at,
+        last_poll_at: estado?.last_poll_at ?? null,
+        duracao_ms: estado?.duracao_ms ?? null,
+        last_error: estado?.last_error ?? null,
+        snapshot: estado?.snapshot ?? snapshotSalvo,
+      };
+    }),
+  );
+
   // GET /api/nodes/:device_id
   app.get(
     "/api/nodes/:device_id",

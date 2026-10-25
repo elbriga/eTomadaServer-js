@@ -9,6 +9,11 @@ export function criarNodeRepository(db) {
     SELECT ${campos} FROM nodes ORDER BY device_id COLLATE NOCASE
   `);
 
+  const selectComSnapshot = db.prepare(`
+    SELECT ${campos}, snapshot_json
+    FROM nodes ORDER BY device_id COLLATE NOCASE
+  `);
+
   const selectUm = db.prepare(`
     SELECT ${campos} FROM nodes WHERE device_id = ?
   `);
@@ -52,6 +57,10 @@ export function criarNodeRepository(db) {
   return {
     listar() {
       return selectTodos.all().map(formatar);
+    },
+
+    listarComSnapshot() {
+      return selectComSnapshot.all().map(formatar);
     },
 
     buscar(deviceId) {

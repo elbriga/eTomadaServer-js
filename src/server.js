@@ -186,6 +186,9 @@ app.get("/", (request, reply) => {
 app.get("/historico", (request, reply) => {
   return reply.sendFile("historico.html");
 });
+app.get("/nodos", (request, reply) => {
+  return reply.sendFile("nodos.html");
+});
 // SSE
 const notificarLog = registrarSse(app);
 
