@@ -161,8 +161,9 @@ app.get("/api/health", async () => {
     tables[tabela] = result.total;
   }
 
+  const nodos = {};
   const nodes = criarNodeRepository(db);
-  const nodos = nodes.listar();
+  for (var n in nodes.listar()) nodos[n.device_id] = n.api ?? "API?";
 
   return {
     ok: true,
