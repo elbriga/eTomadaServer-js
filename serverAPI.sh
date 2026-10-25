@@ -1,17 +1,21 @@
 #!/bin/bash
 
+HOST=10.0.0.1:8080
+
 ENDPOINT=$1
 JSON=$2
+METODO=$3
 
 uso() {
-    echo "USO: ./serverAPI.sh [ENDPOINT] [JSON]" >&2
+    echo "USO: ./serverAPI.sh [ENDPOINT] [JSON] [METODO]" >&2
     echo >&2
     exit 1
 }
 
 [[ -z "$ENDPOINT" ]] && ENDPOINT=health
+[[ -z "$METODO" ]] && METODO=GET
 
-URL="http://pi:8080/api/$ENDPOINT"
+URL="http://$HOST/api/$ENDPOINT"
 
 if [ ! -z "$JSON" ]; then
     echo "> POST para [$URL]" >&2
@@ -25,8 +29,8 @@ if [ ! -z "$JSON" ]; then
         RET=${PIPESTATUS[0]} 
     fi
 else
-    echo "> GET para [$URL]" >&2
-    curl --connect-timeout 3 -s -v "$URL" | jq .
+    echo "> $METODO para [$URL]" >&2
+    curl --connect-timeout 3 -s -v -X "$METODO" "$URL" | jq .
     RET=${PIPESTATUS[0]} 
 fi
 
