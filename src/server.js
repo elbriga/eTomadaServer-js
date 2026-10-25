@@ -153,22 +153,14 @@ app.addHook("onClose", async () => {
   db.close();
 });
 
-app.get("/api/health", async () => ({
-  ok: true,
-  service: "eTomadaServer",
-  environment: env,
-}));
-
-app.get("/api/health/db", async () => {
+app.get("/api/health", async () => {
   const tables = {};
-
   for (const tabela of TABELAS) {
     const result = db.prepare(`SELECT COUNT(*) AS total FROM ${tabela}`).get();
-
     tables[tabela] = result.total;
   }
 
-  return { ok: true, tables };
+  return { ok: true, service: "eTomadaServer", environment: env, tables };
 });
 
 // ==== Frontend ====
