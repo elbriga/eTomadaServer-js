@@ -16,6 +16,7 @@ import rulesRoutes from "./routes/rules.js";
 import micRoutes from "./routes/mic.js";
 
 import { criarNodeMonitor } from "./services/nodeMonitor.js";
+import { criarNodeRepository } from "./repositories/nodeRepository.js";
 import { criarLogRepository } from "./repositories/logRepository.js";
 import { criarServerLogStream } from "./services/serverLogStream.js";
 import { criarResourceService } from "./services/resourceService.js";
@@ -160,7 +161,16 @@ app.get("/api/health", async () => {
     tables[tabela] = result.total;
   }
 
-  return { ok: true, service: "eTomadaServer", environment: env, tables };
+  const nodes = criarNodeRepository(db);
+  const nodos = nodes.listar();
+
+  return {
+    ok: true,
+    service: "eTomadaServer",
+    environment: env,
+    nodos,
+    tables,
+  };
 });
 
 // ==== Frontend ====
