@@ -58,7 +58,14 @@ export function criarNodeMonitor({
 
     const resultado = classificarUptime(s.ultimaObservacaoUptime, atual);
 
-    if (resultado === "indeterminado") {
+    // Snapshot espontâneo do Full > sinal explícito de boot.
+    const bootPush =
+      origem === "push" &&
+      Number.isInteger(snapshot.uptime) &&
+      snapshot.uptime >= 0 &&
+      snapshot.uptime < 2 ** 32;
+
+    if (resultado === "indeterminado" && !bootPush) {
       // Descartamos a referência antiga em vez de
       // produzir uma conclusão sobre um intervalo incerto.
       s.ultimaObservacaoUptime = null;
@@ -67,7 +74,7 @@ export function criarNodeMonitor({
 
     s.ultimaObservacaoUptime = atual;
 
-    if (resultado !== "reiniciou") return;
+    if (!bootPush && resultado !== "reiniciou") return;
 
     log.warn(
       {
@@ -76,7 +83,9 @@ export function criarNodeMonitor({
         uptime: atual.uptime,
         origem,
       },
-      "Reinicialização de nodo detectada",
+      bootPush
+        ? "Boot informado pelo snapshot"
+        : "Reinicialização de nodo detectada",
     );
 
     // Executa a reconciliação e acompanha operações assíncronas.

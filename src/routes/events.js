@@ -98,21 +98,6 @@ export default async function eventsRoutes(
         throw erro;
       }
 
-      // Detector de boot > consultar snapshot imediatamente
-      if (event.evento?.toUpperCase() === "BOOT" && event.id === "ETOMADA") {
-        // Reboot do nodo > descartar timers do ciclo anterior.
-        ruleEngine?.cancelarTimersNodo(event.origem);
-
-        setImmediate(() => {
-          monitor.consultar(event.origem).catch((erro) => {
-            app.log.warn(
-              { module: "NODES", device_id: event.origem, err: erro },
-              "Falha ao consultar snapshot após BOOT",
-            );
-          });
-        });
-      }
-
       // Impede que um GET antigo sobrescreva o evento.
       if (atualizado) {
         monitor.receberEvento(event.origem);

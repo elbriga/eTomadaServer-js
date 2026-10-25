@@ -60,6 +60,8 @@ const monitor = criarNodeMonitor({
   log: app.log,
   // Reboot de nodo > reconciliar regras globais.
   aoReiniciar({ deviceId, snapshot }) {
+    // Boot > descartar timers do ciclo anterior.
+    ruleEngine?.cancelarTimersNodo(deviceId);
     return ruleEngine?.reconciliarBoot(deviceId, snapshot);
   },
   // Snapshot > conferir regras locais administradas pelo servidor.

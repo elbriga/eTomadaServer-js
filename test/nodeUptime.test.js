@@ -54,7 +54,7 @@ test("intervalo maior que rollover é indeterminado", () => {
   );
 });
 
-test("monitor identifica reboot sem iniciar polling", () => {
+test("monitor identifica boot via push sem iniciar polling", () => {
   const db = new DatabaseSync(":memory:");
   inicializarSchema(db);
 
@@ -84,13 +84,15 @@ test("monitor identifica reboot sem iniciar polling", () => {
     });
 
     assert.equal(monitor.receberSnapshot(snapshot(100000)), true);
-    assert.equal(monitor.receberSnapshot(snapshot(100010)), true);
+    assert.deepEqual(reinicios, ["GROW"]);
 
-    assert.deepEqual(reinicios, []);
+    assert.equal(monitor.receberSnapshot(snapshot(100010)), true);
+    assert.deepEqual(reinicios, ["GROW", "GROW"]);
 
     assert.equal(monitor.receberSnapshot(snapshot(500)), true);
+    assert.deepEqual(reinicios, ["GROW", "GROW", "GROW"]);
 
-    assert.deepEqual(reinicios, ["GROW"]);
+    assert.equal(monitor.obterStatus("GROW").origem, "push");
   } finally {
     db.close();
   }
