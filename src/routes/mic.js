@@ -78,7 +78,7 @@ export default async function micRoutes(app) {
 
       app.log.info(
         { module: "VOICE", device_id: deviceId },
-        `Transcricao: ${texto || "(vazia)"}`,
+        `Transcricao: [${texto || "(vazia)"}]`,
       );
 
       return { ok: true, device_id: deviceId, texto };
