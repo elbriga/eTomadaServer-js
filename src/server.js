@@ -163,7 +163,7 @@ app.get("/api/health", async () => {
 
   const nodos = {};
   const nodes = criarNodeRepository(db);
-  for (var n in nodes.listar()) nodos[n.device_id] = n.api ?? "API?";
+  for (var n of nodes.listar()) nodos[n.device_id] = n.api ?? "API?";
 
   return {
     ok: true,
