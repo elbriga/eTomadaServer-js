@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { abrirBanco, TABELAS } from "./db.js";
 import { registrarSse } from "./sse.js";
+import { registrarAuth } from "./auth.js";
+
 import logsRoutes from "./routes/logs.js";
 import eventsRoutes from "./routes/events.js";
 import resourcesRoutes from "./routes/resources.js";
@@ -11,7 +13,8 @@ import screensRoutes from "./routes/screens.js";
 import nodesRoutes from "./routes/nodes.js";
 import groupsRoutes from "./routes/groups.js";
 import rulesRoutes from "./routes/rules.js";
-import { registrarAuth } from "./auth.js";
+import micRoutes from "./routes/mic.js";
+
 import { criarNodeMonitor } from "./services/nodeMonitor.js";
 import { criarLogRepository } from "./repositories/logRepository.js";
 import { criarServerLogStream } from "./services/serverLogStream.js";
@@ -196,6 +199,7 @@ await app.register(screensRoutes, { db });
 await app.register(nodesRoutes, { db, monitor });
 await app.register(groupsRoutes, { db, comandos, permitirComandos });
 await app.register(rulesRoutes, { db, monitor, ruleSync });
+await app.register(micRoutes);
 
 let encerrando = false;
 
