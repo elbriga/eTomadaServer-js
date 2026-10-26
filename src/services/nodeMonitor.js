@@ -217,7 +217,7 @@ export function criarNodeMonitor({
     // Grava ANTES do HTTP: timeout ou reinício do servidor não repetem a ação.
     if (!recovery.marcarTentativa(deviceId)) return true;
     try {
-      await reiniciarRecovery(deviceId, node.api, timeoutMs);
+      await reiniciarRecovery(deviceId, timeoutMs);
       log.warn(
         { module: "NODES", device_id: deviceId },
         "Reboot automático de recovery enviado",

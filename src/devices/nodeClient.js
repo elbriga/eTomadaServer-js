@@ -98,7 +98,6 @@ export async function consultarStatusRecovery(deviceId, timeoutMs = 2000) {
   }
 }
 
-// O Full usa GET; o Lite usa POST na API existente.
 export async function reiniciarRecovery(deviceId, timeoutMs = 2000) {
   const hostname = `${deviceId.toLowerCase()}.etomada`;
   const resposta = await fetch(`http://${hostname}/api/reboot`, {
