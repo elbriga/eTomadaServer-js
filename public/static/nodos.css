@@ -1,0 +1,106 @@
+.nodos-container {
+  padding: 12px 18px;
+}
+
+.nodos-tabela {
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.nodos-tabela th {
+  padding: 9px 8px;
+}
+
+.nodos-tabela td {
+  padding: 7px 8px;
+  min-width: 0;
+}
+
+.nodos-tabela td:first-child {
+  font-weight: bold;
+}
+
+.nodos-tabela td:last-child {
+  color: #555;
+}
+
+.nodos-tabela th button {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.nodos-tabela th button:hover {
+  background: transparent;
+  color: #2563eb;
+}
+
+.nodos-tabela th[aria-sort="ascending"] button::after {
+  content: " ▲";
+  font-size: 10px;
+}
+
+.nodos-tabela th[aria-sort="descending"] button::after {
+  content: " ▼";
+  font-size: 10px;
+}
+
+/* Indicadores de disponibilidade */
+.nodo-status {
+  display: inline-block;
+  min-width: 82px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.nodo-status-online {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.nodo-status-offline {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.nodo-status-unknown {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.nodo-status-disabled {
+  color: #475569;
+  background: #e2e8f0;
+}
+
+.nodos-resumo {
+  font-size: 13px;
+  color: #475569;
+}
+
+.nodos-vazio {
+  padding: 24px !important;
+  text-align: center;
+  color: #64748b;
+}
+
+@media (max-width: 700px) {
+  .nodos-container {
+    padding: 10px;
+  }
+
+  .nodos-resumo,
+  #nodos-atualizacao {
+    width: 100%;
+    margin-left: 0;
+  }
+}

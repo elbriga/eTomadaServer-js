@@ -4,8 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
-    <title>eTomada Server - Nodos</title>
+    <title>Nodos - eTomada Server</title>
     <link rel="stylesheet" href="/static/estilo.css" />
+    <link rel="stylesheet" href="/static/nodos.css" />
+    <script src="/static/nodos.js" defer></script>
   </head>
 
   <body>
@@ -18,6 +20,65 @@
       </nav>
     </header>
 
-    <script src="/static/app.js"></script>
+    <main>
+      <section class="filters">
+        <div class="filter">
+          <label for="nodos-filtro">Filtrar nodo</label>
+          <input
+            id="nodos-filtro"
+            type="search"
+            placeholder="Nome do nodo..."
+            autocomplete="off"
+          />
+        </div>
+
+        <button id="nodos-atualizar" type="button">Atualizar</button>
+
+        <span id="nodos-resumo" class="nodos-resumo">—</span>
+        <span id="nodos-atualizacao" class="status" role="status">
+          Carregando...
+        </span>
+      </section>
+
+      <div class="table-container nodos-container">
+        <table id="nodos-tabela" class="nodos-tabela">
+          <thead>
+            <tr>
+              <th data-coluna="device_id" aria-sort="ascending">
+                <button type="button">Nodo</button>
+              </th>
+              <th data-coluna="status">
+                <button type="button">Status</button>
+              </th>
+              <th data-coluna="api"><button type="button">API</button></th>
+              <th data-coluna="ip"><button type="button">IP</button></th>
+              <th data-coluna="fw_version">
+                <button type="button">Versão</button>
+              </th>
+              <th data-coluna="device_model">
+                <button type="button">Modelo</button>
+              </th>
+              <th data-coluna="device_board">
+                <button type="button">Board</button>
+              </th>
+              <th data-coluna="ssid"><button type="button">SSID</button></th>
+              <th data-coluna="uptime">
+                <button type="button">Uptime</button>
+              </th>
+              <th data-coluna="memoria">
+                <button type="button">Memória</button>
+              </th>
+              <th data-coluna="wifiPower">
+                <button type="button">Sinal</button>
+              </th>
+              <th data-coluna="last_seen_at">
+                <button type="button">Último contato</button>
+              </th>
+            </tr>
+          </thead>
+          <tbody id="nodos-corpo"></tbody>
+        </table>
+      </div>
+    </main>
   </body>
 </html>
