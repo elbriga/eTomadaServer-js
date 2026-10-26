@@ -11,6 +11,7 @@ import {
 import { criarCommandRepository } from "../repositories/commandRepository.js";
 import { criarRecoveryRepository } from "../repositories/recoveryRepository.js";
 import { classificarUptime } from "./nodeUptime.js";
+import { telegramEnviar } from "./telegramService.js";
 
 export function criarNodeMonitor({
   db,
@@ -205,6 +206,7 @@ export function criarNodeMonitor({
     s.origem = "recovery";
     if (!anterior) {
       log.warn({ module: "NODES", device_id: deviceId }, "Nodo em RECOVERY");
+      telegramEnviar(`Nodo em RECOVERY! [${deviceId}]`);
     }
 
     if (
@@ -266,6 +268,7 @@ export function criarNodeMonitor({
         s.status = "offline";
         if (nodes.buscar(deviceId)?.enabled) {
           log.warn({ device_id: deviceId, erro: erro.message }, "Nodo OFFLINE");
+          telegramEnviar(`Nodo OFFLINE!!! [${deviceId}] [${erro.message}]`);
         }
       }
 
@@ -314,10 +317,9 @@ export function criarNodeMonitor({
     const node = nodes.buscar(deviceId);
 
     if (node?.enabled && anterior !== "online") {
-      log.info(
-        { device_id: deviceId, duracao_ms: resultado.duracao_ms },
-        anterior === "offline" ? "Nodo RECONECTADO" : "Nodo ONLINE",
-      );
+      const msg = anterior === "offline" ? "Nodo RECONECTADO" : "Nodo ONLINE";
+      log.info({ device_id: deviceId, duracao_ms: resultado.duracao_ms }, msg);
+      telegramEnviar(`${msg} [${deviceId}]`);
     }
 
     // Checkpoint periódico: evita escrever no SQLite a cada polling.
@@ -453,13 +455,15 @@ export function criarNodeMonitor({
     });
 
     if (node.enabled && anterior !== "online") {
+      const msg = anterior === "offline" ? "Nodo RECONECTADO" : "Nodo ONLINE";
       log.info(
         {
           device_id: node.device_id,
           origem: "POST /api/snapshot",
         },
-        anterior === "offline" ? "Nodo RECONECTADO" : "Nodo ONLINE",
+        msg,
       );
+      telegramEnviar(`${msg} [${node.device_id}]`);
     }
 
     return true;
