@@ -64,7 +64,10 @@ for (const api of ["Full", "Lite"]) {
       await assert.rejects(monitor.consultar("DEV"), { code: "RECOVERY" });
       assert.equal(monitor.obterStatus("DEV").status, "recovery");
       assert.equal(quantidadeReboots(), 1);
-      assert.equal(requests.at(-1).method, api === "Full" ? "GET" : "POST");
+      assert.deepEqual(
+        requests.filter((r) => r.path === "/api/reboot").map((r) => r.method),
+        ["GET"],
+      );
       assert.ok(registros.obter("DEV").reboot_attempted_at);
 
       // Simula reinício do servidor mantendo o mesmo SQLite.

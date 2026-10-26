@@ -73,7 +73,7 @@ const localBody = {
   },
 };
 
-test("schema v5 e migração 4→5", () => {
+test("schema atual e migração 4→6", () => {
   const db = prepararBanco();
 
   try {
@@ -84,6 +84,7 @@ test("schema v5 e migração 4→5", () => {
 
     // Simula um banco v4 com dados já persistidos.
     db.exec(`
+      DROP TABLE node_recovery;
       DROP TABLE rules;
       PRAGMA user_version = 4;
 
@@ -94,7 +95,10 @@ test("schema v5 e migração 4→5", () => {
     inicializarSchema(db);
     inicializarSchema(db);
 
-    assert.equal(db.prepare("PRAGMA user_version").get().user_version, 5);
+    assert.equal(
+      db.prepare("PRAGMA user_version").get().user_version,
+      SCHEMA_VERSION,
+    );
 
     assert.equal(
       db.prepare("SELECT message FROM logs").get().message,

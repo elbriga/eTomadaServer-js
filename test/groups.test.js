@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import Fastify from "fastify";
 
-import { inicializarSchema } from "../src/schema.js";
+import { inicializarSchema, SCHEMA_VERSION } from "../src/schema.js";
 import { criarResourceRepository } from "../src/repositories/resourceRepository.js";
 import { criarGroupRepository } from "../src/repositories/groupRepository.js";
 import groupsRoutes from "../src/routes/groups.js";
@@ -29,13 +29,16 @@ function preparar() {
   return { db, resources, groups };
 }
 
-test("schema v5 e inicialização repetida", () => {
+test("schema atual e inicialização repetida", () => {
   const { db } = preparar();
 
   try {
     inicializarSchema(db);
 
-    assert.equal(db.prepare("PRAGMA user_version").get().user_version, 5);
+    assert.equal(
+      db.prepare("PRAGMA user_version").get().user_version,
+      SCHEMA_VERSION,
+    );
 
     assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 
