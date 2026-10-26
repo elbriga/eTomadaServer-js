@@ -1,9 +1,10 @@
 export class NodeClientError extends Error {
-  constructor(message, code, statusCode = 502) {
+  constructor(message, code, statusCode = 502, httpStatus = null) {
     super(message);
     this.name = "NodeClientError";
     this.code = code;
     this.statusCode = statusCode;
+    this.httpStatus = httpStatus;
   }
 }
 
@@ -23,6 +24,8 @@ export async function consultarSnapshot(deviceId, timeoutMs = 2000) {
       throw new NodeClientError(
         `HTTP ${resposta.status} em ${hostname}`,
         "HTTP_ERROR",
+        502,
+        resposta.status,
       );
     }
 
@@ -74,6 +77,39 @@ export async function consultarSnapshot(deviceId, timeoutMs = 2000) {
     throw new NodeClientError(
       `Falha ao consultar ${hostname}: ${erro.message}`,
       "NETWORK_ERROR",
+    );
+  }
+}
+
+// API mínima do recovery: só confirma quando mode === "recovery".
+export async function consultarStatusRecovery(deviceId, timeoutMs = 2000) {
+  const hostname = `${deviceId.toLowerCase()}.etomada`;
+  try {
+    const resposta = await fetch(`http://${hostname}/api/status`, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { Accept: "application/json" },
+      redirect: "error",
+    });
+    if (!resposta.ok) return null;
+    const status = await resposta.json();
+    return status?.mode === "recovery" ? status : null;
+  } catch {
+    return null;
+  }
+}
+
+// O Full usa GET; o Lite usa POST na API existente.
+export async function reiniciarRecovery(deviceId, timeoutMs = 2000) {
+  const hostname = `${deviceId.toLowerCase()}.etomada`;
+  const resposta = await fetch(`http://${hostname}/api/reboot`, {
+    method: "GET",
+    signal: AbortSignal.timeout(timeoutMs),
+    redirect: "error",
+  });
+  if (!resposta.ok) {
+    throw new NodeClientError(
+      `Reboot retornou HTTP ${resposta.status}`,
+      "REBOOT_HTTP_ERROR",
     );
   }
 }

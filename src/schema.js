@@ -1,5 +1,5 @@
 // Versão 1: esquema legado + cadastro centralizado de nodos.
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const COLUNAS = {
   logs: [
@@ -82,6 +82,13 @@ const COLUNAS = {
     "revision",
     "created_at",
     "updated_at",
+  ],
+  node_recovery: [
+    "device_id",
+    "detected_at",
+    "last_seen_at",
+    "reboot_attempted_at",
+    "reboot_error",
   ],
 };
 
@@ -287,6 +294,19 @@ const migracoes = {
     CREATE INDEX idx_rules_escopo_nodo
       ON rules(escopo, device_id);
   `);
+  },
+
+  6(db) {
+    db.exec(`
+      CREATE TABLE node_recovery (
+        device_id TEXT PRIMARY KEY COLLATE NOCASE
+          REFERENCES nodes(device_id) ON DELETE CASCADE,
+        detected_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL,
+        reboot_attempted_at INTEGER,
+        reboot_error TEXT
+      );
+    `);
   },
 };
 

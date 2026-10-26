@@ -59,6 +59,11 @@ let ruleSync = null;
 const monitor = criarNodeMonitor({
   db,
   log: app.log,
+  // Em DEV, respeitar as autorizações já usadas para comandos físicos.
+  autoRebootRecovery:
+    process.env.RECOVERY_AUTO_REBOOT === "true" &&
+    (env !== "dev" || habilitarFisicos),
+  nodoRebootRecovery: env === "dev" ? nodoDev : null,
   // Reboot de nodo > reconciliar regras globais.
   aoReiniciar({ deviceId, snapshot }) {
     // Boot > descartar timers do ciclo anterior.

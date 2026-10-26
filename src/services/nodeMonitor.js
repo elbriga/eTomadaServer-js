@@ -2,8 +2,14 @@ import { performance } from "node:perf_hooks";
 
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
-import { consultarSnapshot, NodeClientError } from "../devices/nodeClient.js";
+import {
+  consultarSnapshot,
+  consultarStatusRecovery,
+  reiniciarRecovery,
+  NodeClientError,
+} from "../devices/nodeClient.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
+import { criarRecoveryRepository } from "../repositories/recoveryRepository.js";
 import { classificarUptime } from "./nodeUptime.js";
 
 export function criarNodeMonitor({
@@ -13,6 +19,8 @@ export function criarNodeMonitor({
   aoSnapshot = null,
   intervaloMs = 30_000,
   timeoutMs = 2_000,
+  autoRebootRecovery = false,
+  nodoRebootRecovery = null,
   concorrencia = 4,
   falhasOffline = 2,
   checkpointMs = 300_000,
@@ -20,6 +28,7 @@ export function criarNodeMonitor({
   const nodes = criarNodeRepository(db);
   const resources = criarResourceRepository(db);
   const commands = criarCommandRepository(db);
+  const recovery = criarRecoveryRepository(db);
   const estados = new Map();
   const pendentes = new Map();
   const reconciliacoesBoot = new Set();
@@ -116,6 +125,7 @@ export function criarNodeMonitor({
     const s = estados.get(node.device_id);
 
     return {
+      recovery: recovery.obter(node.device_id),
       device_id: node.device_id,
       nome: node.nome,
       enabled: node.enabled,
@@ -130,6 +140,98 @@ export function criarNodeMonitor({
     };
   }
 
+  function confirmarBootEstavel(deviceId, snapshot) {
+    // Nunca liberar nova tentativa com um boot ainda sujeito ao recovery.
+    if (
+      Number.isInteger(snapshot.uptime) &&
+      snapshot.uptime >= 35_000 &&
+      snapshot.uptime < 2 ** 32 &&
+      recovery.limpar(deviceId)
+    ) {
+      log.info(
+        { module: "NODES", device_id: deviceId },
+        "Recovery encerrado: boot estável",
+      );
+    }
+  }
+
+  async function detectarRecovery(deviceId, s, revisaoInicial) {
+    const info = await consultarStatusRecovery(deviceId, timeoutMs);
+    if (!info) return false;
+
+    const node = nodes.buscar(deviceId);
+    if (
+      !node?.enabled ||
+      s.revisaoPush !== revisaoInicial ||
+      estados.get(deviceId) !== s
+    )
+      return false;
+
+    // Firmware atualizado informa MAC: impede reboot por DNS desatualizado.
+    const normalizarMac = (mac) =>
+      String(mac)
+        .replace(/[^a-fA-F0-9]/g, "")
+        .toUpperCase();
+    if (
+      info.mac &&
+      node.mac &&
+      normalizarMac(info.mac) !== normalizarMac(node.mac)
+    ) {
+      log.warn(
+        { module: "NODES", device_id: deviceId },
+        "Recovery com MAC divergente",
+      );
+      return false;
+    }
+    if (
+      info.device_id != null &&
+      (typeof info.device_id !== "string" ||
+        info.device_id.toUpperCase() !== deviceId)
+    ) {
+      log.warn(
+        { module: "NODES", device_id: deviceId },
+        "Recovery com device_id divergente",
+      );
+      return false;
+    }
+
+    const anterior = recovery.obter(deviceId);
+    recovery.registrar(deviceId);
+    s.status = "recovery";
+    s.falhas = 0;
+    s.last_seen_at = agora();
+    s.last_error = null;
+    s.duracao_ms = null;
+    s.origem = "recovery";
+    if (!anterior) {
+      log.warn({ module: "NODES", device_id: deviceId }, "Nodo em RECOVERY");
+    }
+
+    if (
+      !autoRebootRecovery ||
+      (nodoRebootRecovery && nodoRebootRecovery !== deviceId) ||
+      !["Full", "Lite"].includes(node.api)
+    )
+      return true;
+
+    // Grava ANTES do HTTP: timeout ou reinício do servidor não repetem a ação.
+    if (!recovery.marcarTentativa(deviceId)) return true;
+    try {
+      await reiniciarRecovery(deviceId, node.api, timeoutMs);
+      log.warn(
+        { module: "NODES", device_id: deviceId },
+        "Reboot automático de recovery enviado",
+      );
+    } catch (erro) {
+      recovery.registrarErro(deviceId, erro.message);
+      log.warn(
+        { module: "NODES", device_id: deviceId, err: erro },
+        "Reboot de recovery sem confirmação; não será repetido",
+      );
+    }
+    return true;
+  }
+
   async function executarConsulta(deviceId) {
     const s = estado(deviceId);
     const revisaoInicial = s.revisaoPush;
@@ -140,6 +242,13 @@ export function criarNodeMonitor({
     try {
       resultado = await consultarSnapshot(deviceId, timeoutMs);
     } catch (erro) {
+      if (
+        erro.code === "HTTP_ERROR" &&
+        erro.httpStatus === 404 &&
+        (await detectarRecovery(deviceId, s, revisaoInicial))
+      ) {
+        throw new NodeClientError("Nodo em modo recovery", "RECOVERY", 503);
+      }
       // Uma atualização espontânea mais recente invalida este GET
       // Não deixar um GET antigo alterar esse estado
       if (s.revisaoPush !== revisaoInicial || estados.get(deviceId) !== s) {
@@ -192,6 +301,7 @@ export function criarNodeMonitor({
     s.snapshot = resultado.snapshot;
     s.origem = "poll";
 
+    confirmarBootEstavel(deviceId, resultado.snapshot);
     observarUptime(deviceId, resultado.snapshot, "poll");
 
     // Snapshot aceito > verificar configuração local do Full.
@@ -332,6 +442,7 @@ export function criarNodeMonitor({
     s.snapshot = snapshot;
     s.origem = "push";
 
+    confirmarBootEstavel(node.device_id, snapshot);
     observarUptime(node.device_id, snapshot, "push");
 
     // Snapshot espontâneo > verificar regras sem novo GET.

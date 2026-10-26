@@ -33,6 +33,7 @@ export default async function nodesRoutes(app, { db, monitor }) {
       return {
         ...node,
         status: estado?.status ?? (node.enabled ? "unknown" : "disabled"),
+        recovery: estado?.recovery ?? null,
         last_seen_at: estado?.last_seen_at ?? node.last_seen_at,
         last_poll_at: estado?.last_poll_at ?? null,
         duracao_ms: estado?.duracao_ms ?? null,
