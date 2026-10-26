@@ -104,3 +104,17 @@
     margin-left: 0;
   }
 }
+
+/* Cores alternadas nas linhas */
+.nodos-tabela tbody tr:nth-child(odd) {
+  background-color: #d9c6b1;
+}
+
+.nodos-tabela tbody tr:nth-child(even) {
+  background-color: #c2c894;
+}
+
+/* Destaque ao passar o mouse */
+.nodos-tabela tbody tr:hover {
+  background-color: #ffed62;
+}
