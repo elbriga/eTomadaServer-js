@@ -206,7 +206,7 @@ export function criarNodeMonitor({
     s.origem = "recovery";
     if (!anterior) {
       log.warn({ module: "NODES", device_id: deviceId }, "Nodo em RECOVERY");
-      telegramEnviar(`Nodo em RECOVERY! [${deviceId}]`);
+      telegramEnviar(`[${deviceId}] em RECOVERY! `);
     }
 
     if (
@@ -268,7 +268,7 @@ export function criarNodeMonitor({
         s.status = "offline";
         if (nodes.buscar(deviceId)?.enabled) {
           log.warn({ device_id: deviceId, erro: erro.message }, "Nodo OFFLINE");
-          telegramEnviar(`Nodo OFFLINE!!! [${deviceId}] [${erro.message}]`);
+          telegramEnviar(`[${deviceId}] OFFLINE!! [${erro.message}]`);
         }
       }
 
@@ -317,9 +317,9 @@ export function criarNodeMonitor({
     const node = nodes.buscar(deviceId);
 
     if (node?.enabled && anterior !== "online") {
-      const msg = anterior === "offline" ? "Nodo RECONECTADO" : "Nodo ONLINE";
+      const msg = anterior === "offline" ? "RECONECTADO" : "ONLINE";
       log.info({ device_id: deviceId, duracao_ms: resultado.duracao_ms }, msg);
-      telegramEnviar(`${msg} [${deviceId}]`);
+      telegramEnviar(`[${deviceId}] ${msg}`);
     }
 
     // Checkpoint periódico: evita escrever no SQLite a cada polling.
@@ -455,7 +455,7 @@ export function criarNodeMonitor({
     });
 
     if (node.enabled && anterior !== "online") {
-      const msg = anterior === "offline" ? "Nodo RECONECTADO" : "Nodo ONLINE";
+      const msg = anterior === "offline" ? "RECONECTADO" : "ONLINE";
       log.info(
         {
           device_id: node.device_id,
@@ -463,7 +463,7 @@ export function criarNodeMonitor({
         },
         msg,
       );
-      telegramEnviar(`${msg} [${node.device_id}]`);
+      telegramEnviar(`[${node.device_id}] ${msg}`);
     }
 
     return true;

@@ -13,7 +13,7 @@ export async function telegramEnviar(texto) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
-        text: `[${ENV.toUpperCase()}] > ${texto}`,
+        text: `${texto} >[${ENV.toUpperCase()}]`,
       }),
       signal: AbortSignal.timeout(10000),
     },
