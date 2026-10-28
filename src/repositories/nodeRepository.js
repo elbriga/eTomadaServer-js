@@ -1,8 +1,8 @@
 export function criarNodeRepository(db) {
   const campos = `
-    device_id, nome, descricao, enabled, api, device_model, device_board,
-    fw_version, mac, ssid, last_seen_at, last_snapshot_at,
-    created_at, updated_at
+    device_id, nome, descricao, enabled, telegram_alert, api,
+    device_model, device_board, fw_version, mac, ssid, last_seen_at,
+    last_snapshot_at, created_at, updated_at
   `;
 
   const selectTodos = db.prepare(`
@@ -23,14 +23,14 @@ export function criarNodeRepository(db) {
   `);
 
   const insert = db.prepare(`
-    INSERT INTO nodes (device_id, nome, descricao, enabled)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO nodes (device_id, nome, descricao, enabled, telegram_alert)
+    VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(device_id) DO NOTHING
   `);
 
   const update = db.prepare(`
     UPDATE nodes
-    SET nome = ?, descricao = ?, enabled = ?, updated_at = unixepoch()
+    SET nome = ?, descricao = ?, enabled = ?, telegram_alert = ?, updated_at = unixepoch()
     WHERE device_id = ?
   `);
 
@@ -56,7 +56,13 @@ export function criarNodeRepository(db) {
     typeof valor === "string" && valor.trim() ? valor.trim() : null;
 
   const formatar = (row) =>
-    row ? { ...row, enabled: row.enabled === 1 } : null;
+    row
+      ? {
+          ...row,
+          enabled: row.enabled === 1,
+          telegram_alert: row.telegram_alert === 1,
+        }
+      : null;
 
   return {
     listar() {
@@ -75,8 +81,20 @@ export function criarNodeRepository(db) {
       return formatar(selectUm.get(deviceId));
     },
 
-    criar({ device_id, nome = "", descricao = "", enabled = true }) {
-      const result = insert.run(device_id, nome, descricao, enabled ? 1 : 0);
+    criar({
+      device_id,
+      nome = "",
+      descricao = "",
+      enabled = true,
+      telegram_alert = false,
+    }) {
+      const result = insert.run(
+        device_id,
+        nome,
+        descricao,
+        enabled ? 1 : 0,
+        telegram_alert ? 1 : 0,
+      );
 
       if (result.changes === 0) return null;
 
@@ -90,8 +108,17 @@ export function criarNodeRepository(db) {
       const nome = alteracoes.nome ?? atual.nome;
       const descricao = alteracoes.descricao ?? atual.descricao;
       const enabled = alteracoes.enabled ?? atual.enabled === 1;
+      const telegram_alert =
+        alteracoes.telegram_alert ?? atual.telegram_alert === 1;
 
-      update.run(nome, descricao, enabled ? 1 : 0, deviceId);
+      update.run(
+        nome,
+        descricao,
+        enabled ? 1 : 0,
+        telegram_alert ? 1 : 0,
+        deviceId,
+      );
+
       return formatar(selectUm.get(deviceId));
     },
 

@@ -2,7 +2,8 @@
 // ...
 // Versão 7: Novos Nodos
 // Versão 8: Descrição administrativa dos nodos
-export const SCHEMA_VERSION = 8;
+// Versão 9: Alertas Telegram por nodo
+export const SCHEMA_VERSION = 9;
 
 const COLUNAS = {
   logs: [
@@ -46,6 +47,7 @@ const COLUNAS = {
     "nome",
     "descricao",
     "enabled",
+    "telegram_alert",
     "api",
     "device_model",
     "device_board",
@@ -334,6 +336,14 @@ const migracoes = {
     db.exec(`
       ALTER TABLE nodes
         ADD COLUMN descricao TEXT NOT NULL DEFAULT '';
+    `);
+  },
+
+  9(db) {
+    db.exec(`
+      ALTER TABLE nodes
+        ADD COLUMN telegram_alert INTEGER NOT NULL DEFAULT 0
+        CHECK (telegram_alert IN (0, 1));
     `);
   },
 };

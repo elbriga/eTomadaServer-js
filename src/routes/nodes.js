@@ -17,6 +17,7 @@ const camposEditaveis = {
   nome: { type: "string", maxLength: 100 },
   descricao: { type: "string", maxLength: 500 },
   enabled: { type: "boolean" },
+  telegram_alert: { type: "boolean" },
 };
 
 export default async function nodesRoutes(app, { db, monitor }) {

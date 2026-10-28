@@ -11,6 +11,7 @@ const formCadastro = $("nodo-form");
 const campoNome = $("nodo-editar-nome");
 const campoDescricao = $("nodo-editar-descricao");
 const campoEnabled = $("nodo-editar-enabled");
+const campoTelegram = $("nodo-editar-telegram");
 const botaoSalvarCadastro = $("nodo-salvar");
 const mensagemCadastro = $("nodo-edicao-mensagem");
 const painelRecursos = $("nodo-recursos-painel");
@@ -94,6 +95,7 @@ function preencherCadastro(nodo) {
   campoNome.value = nodo.nome ?? "";
   campoDescricao.value = nodo.descricao ?? "";
   campoEnabled.checked = Boolean(nodo.enabled);
+  campoTelegram.checked = Boolean(nodo.telegram_alert);
 }
 
 // Edição administrativa > não substituir campos que estão sendo alterados.
@@ -126,6 +128,7 @@ formCadastro.addEventListener("submit", async (evento) => {
         nome: campoNome.value.trim(),
         descricao: campoDescricao.value.trim(),
         enabled: campoEnabled.checked,
+        telegram_alert: campoTelegram.checked,
       }),
     });
 

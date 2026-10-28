@@ -27,21 +27,8 @@ export function criarNodeMonitor({
   concorrencia = 4,
   falhasOffline = 2,
   checkpointMs = 300_000,
+  enviarTelegram = telegramEnviar,
 }) {
-  // Nodos autorizados a enviar alertas ao Telegram.
-  const telegramNodes = new Set(
-    (process.env.TELEGRAM_NODES_ALERT ?? "")
-      .split(",")
-      .map((id) => id.trim().toUpperCase())
-      .filter(Boolean),
-  );
-
-  function telegramEnviarNodo(deviceId, mensagem) {
-    if (telegramNodes.has(deviceId.toUpperCase())) {
-      telegramEnviar(`[${deviceId}] ${mensagem}`);
-    }
-  }
-
   const nodes = criarNodeRepository(db);
   const novos = criarPendingNodeRepository(db);
   const resources = criarResourceRepository(db);
@@ -56,6 +43,20 @@ export function criarNodeMonitor({
   let rodadaAtual = null;
 
   const agora = () => Math.floor(Date.now() / 1000);
+
+  // Alertas Telegram > configuração persistida por nodo
+  function telegramEnviarNodo(deviceId, mensagem) {
+    if (!nodes.buscar(deviceId)?.telegram_alert) return;
+
+    void Promise.resolve()
+      .then(() => enviarTelegram(`[${deviceId}] ${mensagem}`))
+      .catch((err) => {
+        log.warn(
+          { module: "TELEGRAM", device_id: deviceId, err },
+          "Falha ao enviar alerta Telegram",
+        );
+      });
+  }
 
   // Notifica alterações sem interferir no monitoramento
   function avisarAtualizacao(deviceId) {
