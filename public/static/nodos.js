@@ -9,6 +9,7 @@ const comparador = new Intl.Collator("pt-BR", {
 });
 
 const estados = {
+  new: "NOVO",
   online: "ONLINE",
   offline: "OFFLINE",
   recovery: "RECOVERY",
@@ -162,10 +163,11 @@ function renderizarNodos() {
 
   const online = nodos.filter((n) => valor(n, "status") === "online").length;
   const offline = nodos.filter((n) => valor(n, "status") === "offline").length;
+  const novos = nodos.filter((n) => valor(n, "status") === "new").length;
 
   resumoNodos.textContent =
     `${filtrados.length}/${nodos.length} nodos • ` +
-    `${online} online • ${offline} offline`;
+    `${online} online • ${offline} offline • ${novos} novos`;
 
   // Mantém indicação da coluna ordenada
   for (const th of document.querySelectorAll("#nodos-tabela th[data-coluna]")) {

@@ -73,7 +73,7 @@ const localBody = {
   },
 };
 
-test("schema atual e migração 4→6", () => {
+test("schema atual e migração 4→7", () => {
   const db = prepararBanco();
 
   try {
@@ -84,6 +84,7 @@ test("schema atual e migração 4→6", () => {
 
     // Simula um banco v4 com dados já persistidos.
     db.exec(`
+      DROP TABLE nodes_pending;
       DROP TABLE node_recovery;
       DROP TABLE rules;
       PRAGMA user_version = 4;

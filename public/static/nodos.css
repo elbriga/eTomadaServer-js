@@ -62,6 +62,11 @@
   font-weight: bold;
 }
 
+.nodo-status-new {
+  color: #713f12;
+  background: #facc15;
+}
+
 .nodo-status-online {
   color: #166534;
   background: #dcfce7;

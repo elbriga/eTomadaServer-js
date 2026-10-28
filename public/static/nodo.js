@@ -5,8 +5,10 @@ const mensagem = document.getElementById("nodo-mensagem");
 const aviso = document.getElementById("nodo-aviso");
 const dados = document.getElementById("nodo-dados");
 const botaoAtualizar = document.getElementById("nodo-atualizar");
+const botaoAdicionar = document.getElementById("nodo-adicionar");
 
 const estados = {
+  new: "NOVO",
   online: "ONLINE",
   offline: "OFFLINE",
   recovery: "RECOVERY",
@@ -58,17 +60,22 @@ function formataData(segundos) {
 
 function renderizar(nodo) {
   const snapshot = nodo.snapshot ?? {};
-  const estado =
-    nodo.enabled === false ? "disabled" : (nodo.status ?? "unknown");
-  const estadoConhecido = estados[estado] ? estado : "unknown";
+  const estado = nodo.pendente
+    ? "new"
+    : nodo.enabled === false
+      ? "disabled"
+      : (nodo.status ?? "unknown");
+  botaoAdicionar.hidden = !nodo.pendente;
   const memoria = snapshot.freeHeap ?? snapshot.free_heap ?? snapshot.heap_free;
   const ultimoErro = nodo.last_error?.detail ?? nodo.last_error?.code;
 
   titulo.textContent = nodo.device_id;
-  nome.textContent = nodo.nome || "Sem nome configurado";
+  nome.textContent = nodo.pendente
+    ? "Dispositivo descoberto — aguardando cadastro"
+    : nodo.nome || "Sem nome configurado";
   document.title = `${nodo.device_id} - eTomada Server`;
-  status.textContent = estados[estadoConhecido];
-  status.className = `nodo-status nodo-status-${estadoConhecido}`;
+  status.textContent = estados[estado];
+  status.className = `nodo-status nodo-status-${estado}`;
 
   const campos = {
     "device-id": nodo.device_id,
@@ -96,14 +103,18 @@ function renderizar(nodo) {
   }
 
   const alertas = [];
-  if (estadoConhecido !== "online" && nodo.snapshot) {
+  if (nodo.pendente) {
+    alertas.push(
+      "Este dispositivo enviou um snapshot, mas ainda não está cadastrado. Confira as informações antes de adicioná-lo.",
+    );
+  } else if (estado !== "online" && nodo.snapshot) {
     alertas.push(
       "O nodo não está online. Os dados do dispositivo são do último snapshot disponível.",
     );
   } else if (!nodo.snapshot) {
     alertas.push("Ainda não há snapshot disponível para este nodo.");
   }
-  if (ultimoErro && estadoConhecido === "offline") {
+  if (ultimoErro && estado === "offline") {
     alertas.push(`Último erro: ${ultimoErro}`);
   }
 
@@ -132,6 +143,7 @@ async function carregarNodo() {
     if (!nodo) {
       dados.hidden = true;
       aviso.hidden = true;
+      botaoAdicionar.hidden = true;
       status.textContent = "NÃO ENCONTRADO";
       status.className = "nodo-status nodo-status-unknown";
       mensagem.textContent = `Nodo ${deviceId} não encontrado no cadastro.`;
@@ -153,12 +165,54 @@ async function carregarNodo() {
   }
 }
 
+// Confirmação administrativa > cadastrar o nodo descoberto.
+async function adicionarNodo() {
+  if (!deviceId) return;
+
+  const confirmado = confirm(
+    `Deseja cadastrar o nodo ${deviceId} no eTomadaServer?`,
+  );
+
+  if (!confirmado) return;
+
+  botaoAdicionar.disabled = true;
+  mensagem.textContent = "Cadastrando nodo...";
+
+  try {
+    const resposta = await fetch("/api/nodes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        device_id: deviceId,
+      }),
+    });
+
+    if (!resposta.ok) {
+      const erro = await resposta.json().catch(() => ({}));
+      throw new Error(erro.detail ?? `HTTP ${resposta.status}`);
+    }
+
+    // O overview passará a retornar o nodo já cadastrado.
+    await carregarNodo();
+    mensagem.textContent = `Nodo ${deviceId} cadastrado com sucesso.`;
+  } catch (erro) {
+    mensagem.textContent = `Falha ao cadastrar: ${erro.message}`;
+    console.error("Cadastro de nodo:", erro);
+    await carregarNodo();
+  } finally {
+    botaoAdicionar.disabled = false;
+  }
+}
+
 if (!deviceId) {
   mensagem.textContent = "Identificador de nodo inválido.";
   botaoAtualizar.disabled = true;
 } else {
   titulo.textContent = deviceId;
   botaoAtualizar.addEventListener("click", carregarNodo);
+  botaoAdicionar.addEventListener("click", adicionarNodo);
   void carregarNodo();
 
   // SSE > atualizar apenas quando o evento pertence ao nodo aberto.

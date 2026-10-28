@@ -1,4 +1,5 @@
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
+import { criarNodeRepository } from "../repositories/nodeRepository.js";
 import {
   criarResourceService,
   ResourceCommandError,
@@ -20,6 +21,7 @@ export default async function resourcesRoutes(
   },
 ) {
   const resources = criarResourceRepository(db);
+  const nodes = criarNodeRepository(db);
   const commandHistory = criarCommandRepository(db);
   const comandos =
     comandosCompartilhados ??
@@ -75,6 +77,17 @@ export default async function resourcesRoutes(
     },
     (request) => {
       const { device_id, recursos } = request.body;
+
+      // Nodo desconhecido > armazenar como pendente.
+      if (!nodes.existe(device_id)) {
+        monitor.receberSnapshot(request.body);
+        return {
+          ok: true,
+          device_id,
+          recursos: recursos.length,
+          pendente: true,
+        };
+      }
 
       resources.descobrir(device_id, recursos);
 

@@ -105,3 +105,23 @@
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 }
+
+.nodo-acoes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#nodo-adicionar {
+  background: #16a34a;
+  color: white;
+  border-color: #15803d;
+}
+
+#nodo-adicionar:hover:not(:disabled) {
+  background: #15803d;
+}
+
+#nodo-adicionar[hidden] {
+  display: none;
+}

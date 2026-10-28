@@ -18,6 +18,10 @@ export function criarNodeRepository(db) {
     SELECT ${campos} FROM nodes WHERE device_id = ?
   `);
 
+  const exists = db.prepare(`
+    SELECT 1 FROM nodes WHERE device_id = ?
+  `);
+
   const insert = db.prepare(`
     INSERT INTO nodes (device_id, nome, enabled)
     VALUES (?, ?, ?)
@@ -61,6 +65,10 @@ export function criarNodeRepository(db) {
 
     listarComSnapshot() {
       return selectComSnapshot.all().map(formatar);
+    },
+
+    existe(deviceId) {
+      return !!exists.get(deviceId);
     },
 
     buscar(deviceId) {

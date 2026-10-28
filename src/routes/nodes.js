@@ -25,23 +25,29 @@ export default async function nodesRoutes(app, { db, monitor }) {
   app.get("/api/nodes", () => nodes.listar());
 
   // Dados consolidados para o painel de nodos
-  app.get("/api/nodes/overview", () =>
-    nodes.listarComSnapshot().map(({ snapshot_json, ...node }) => {
-      const estado = monitor.obterStatus(node.device_id);
-      const snapshotSalvo = JSON.parse(snapshot_json ?? "null");
+  app.get("/api/nodes/overview", () => {
+    const cadastrados = nodes
+      .listarComSnapshot()
+      .map(({ snapshot_json, ...node }) => {
+        const estado = monitor.obterStatus(node.device_id);
+        const snapshotSalvo = JSON.parse(snapshot_json ?? "null");
 
-      return {
-        ...node,
-        status: estado?.status ?? (node.enabled ? "unknown" : "disabled"),
-        recovery: estado?.recovery ?? null,
-        last_seen_at: estado?.last_seen_at ?? node.last_seen_at,
-        last_poll_at: estado?.last_poll_at ?? null,
-        duracao_ms: estado?.duracao_ms ?? null,
-        last_error: estado?.last_error ?? null,
-        snapshot: estado?.snapshot ?? snapshotSalvo,
-      };
-    }),
-  );
+        return {
+          ...node,
+          status: estado?.status ?? (node.enabled ? "unknown" : "disabled"),
+          recovery: estado?.recovery ?? null,
+          last_seen_at: estado?.last_seen_at ?? node.last_seen_at,
+          last_poll_at: estado?.last_poll_at ?? null,
+          duracao_ms: estado?.duracao_ms ?? null,
+          last_error: estado?.last_error ?? null,
+          snapshot: estado?.snapshot ?? snapshotSalvo,
+        };
+      });
+
+    return [...cadastrados, ...monitor.listarNovos()].sort((a, b) =>
+      a.device_id.localeCompare(b.device_id, "pt-BR"),
+    );
+  });
 
   // GET /api/nodes/:device_id
   app.get(
@@ -101,7 +107,7 @@ export default async function nodesRoutes(app, { db, monitor }) {
         nome: request.body.nome?.trim() ?? "",
       };
 
-      const node = nodes.criar(dados);
+      const node = monitor.cadastrarNodo(dados);
 
       if (!node) {
         return reply.code(409).send({

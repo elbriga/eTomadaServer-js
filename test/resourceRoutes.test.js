@@ -4,10 +4,12 @@ import { DatabaseSync } from "node:sqlite";
 import Fastify from "fastify";
 import { inicializarSchema } from "../src/schema.js";
 import resourcesRoutes from "../src/routes/resources.js";
+import { criarNodeRepository } from "../src/repositories/nodeRepository.js";
 
 test("API de recursos: descoberta, configuração e preservação", async () => {
   const db = new DatabaseSync(":memory:");
   inicializarSchema(db);
+  criarNodeRepository(db).criar({ device_id: "GROW" });
 
   const recebidos = [];
   const app = Fastify();

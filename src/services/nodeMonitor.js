@@ -10,6 +10,7 @@ import {
 } from "../devices/nodeClient.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
 import { criarRecoveryRepository } from "../repositories/recoveryRepository.js";
+import { criarPendingNodeRepository } from "../repositories/pendingNodeRepository.js";
 import { classificarUptime } from "./nodeUptime.js";
 import { telegramEnviar } from "./telegramService.js";
 
@@ -42,6 +43,7 @@ export function criarNodeMonitor({
   }
 
   const nodes = criarNodeRepository(db);
+  const novos = criarPendingNodeRepository(db);
   const resources = criarResourceRepository(db);
   const commands = criarCommandRepository(db);
   const recovery = criarRecoveryRepository(db);
@@ -450,10 +452,21 @@ export function criarNodeMonitor({
     const node = nodes.buscar(deviceId);
 
     if (!node) {
-      log.warn(
-        { device_id: deviceId },
-        "Snapshot recebido de nodo não cadastrado",
-      );
+      if (!/^[A-Z0-9](?:[A-Z0-9-]{0,30}[A-Z0-9])?$/.test(deviceId)) {
+        log.warn({ device_id: deviceId }, "Device ID inválido no snapshot");
+        return false;
+      }
+
+      // Novo nodo > guardar snapshot até confirmação administrativa.
+      const novo = novos.registrar({ ...snapshot, device_id: deviceId });
+      if (novo) {
+        log.warn(
+          { module: "NODES", device_id: deviceId },
+          "Snapshot recebido de nodo não cadastrado: aguardando cadastro",
+        );
+      }
+
+      avisarAtualizacao(deviceId);
       return false;
     }
 
@@ -516,10 +529,67 @@ export function criarNodeMonitor({
     return true;
   }
 
+  // Cadastro aprovado > transferir snapshot sem simular novo BOOT.
+  function cadastrarNodo(dados) {
+    const pendente = novos.buscar(dados.device_id);
+    let node;
+
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      node = nodes.criar(dados);
+
+      if (node && pendente) {
+        if (!nodes.salvarSnapshot(node.device_id, pendente.snapshot)) {
+          throw new Error("Falha ao incorporar snapshot do novo nodo");
+        }
+        novos.excluir(node.device_id);
+      }
+
+      db.exec("COMMIT");
+    } catch (erro) {
+      db.exec("ROLLBACK");
+      throw erro;
+    }
+
+    if (!node) return null;
+
+    if (pendente) {
+      // Descobre recursos depois de concluir o cadastro.
+      try {
+        resources.descobrir(node.device_id, pendente.snapshot.recursos ?? []);
+      } catch (erro) {
+        log.error(
+          { module: "NODES", device_id: node.device_id, err: erro },
+          "Falha ao descobrir recursos após cadastro",
+        );
+      }
+
+      const s = estado(node.device_id);
+      s.snapshot = pendente.snapshot;
+      s.last_seen_at = pendente.last_seen_at;
+      s.origem = "discovery";
+
+      // Snapshot recente confirma presença sem criar evento de boot.
+      if (node.enabled && agora() - pendente.last_seen_at <= 90) {
+        s.status = "online";
+        s.falhas = 0;
+        s.last_error = null;
+      }
+    }
+
+    avisarAtualizacao(node.device_id);
+    return nodes.buscar(node.device_id);
+  }
+
   return {
     consultar,
     receberSnapshot,
     receberEvento,
+    cadastrarNodo,
+
+    listarNovos() {
+      return novos.listar();
+    },
 
     listarStatus() {
       return nodes.listar().map((node) => visualizar(node));

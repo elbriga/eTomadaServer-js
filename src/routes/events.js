@@ -1,5 +1,6 @@
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
+import { criarNodeRepository } from "../repositories/nodeRepository.js";
 
 export default async function eventsRoutes(
   app,
@@ -14,6 +15,7 @@ export default async function eventsRoutes(
   });
 
   const resources = criarResourceRepository(db);
+  const nodes = criarNodeRepository(db);
   const commands = criarCommandRepository(db);
 
   const insertEvent = db.prepare(`
@@ -114,7 +116,8 @@ export default async function eventsRoutes(
       }
 
       // Motor global: processamento separado do recebimento HTTP.
-      if (ruleEngine) {
+      // So processa eventos de nodos cadastrados
+      if (ruleEngine && nodes.existe(event.origem)) {
         setImmediate(() => {
           if (!ativo) return;
 

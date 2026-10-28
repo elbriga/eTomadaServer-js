@@ -1,5 +1,7 @@
 // Versão 1: esquema legado + cadastro centralizado de nodos.
-export const SCHEMA_VERSION = 6;
+// ...
+// Versão 7: Novos Nodos
+export const SCHEMA_VERSION = 7;
 
 const COLUNAS = {
   logs: [
@@ -89,6 +91,12 @@ const COLUNAS = {
     "last_seen_at",
     "reboot_attempted_at",
     "reboot_error",
+  ],
+  nodes_pending: [
+    "device_id",
+    "snapshot_json",
+    "first_seen_at",
+    "last_seen_at",
   ],
 };
 
@@ -305,6 +313,17 @@ const migracoes = {
         last_seen_at INTEGER NOT NULL,
         reboot_attempted_at INTEGER,
         reboot_error TEXT
+      );
+    `);
+  },
+
+  7(db) {
+    db.exec(`
+      CREATE TABLE nodes_pending (
+        device_id TEXT PRIMARY KEY COLLATE NOCASE,
+        snapshot_json TEXT NOT NULL CHECK (json_valid(snapshot_json)),
+        first_seen_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
       );
     `);
   },
