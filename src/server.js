@@ -55,6 +55,7 @@ const db = abrirBanco();
 
 let ruleEngine = null;
 let ruleSync = null;
+let notificarNodo = null;
 
 const monitor = criarNodeMonitor({
   db,
@@ -73,6 +74,9 @@ const monitor = criarNodeMonitor({
   // Snapshot > conferir regras locais administradas pelo servidor.
   aoSnapshot({ deviceId, snapshot }) {
     void ruleSync?.solicitar(deviceId, snapshot);
+  },
+  aoAtualizar({ deviceId }) {
+    notificarNodo?.(deviceId);
   },
 });
 
@@ -195,7 +199,8 @@ app.get("/nodos", (request, reply) => {
   return reply.sendFile("nodos.html");
 });
 // SSE
-const notificarLog = registrarSse(app);
+const { notificarLog, notificarNodo: publicarNodo } = registrarSse(app);
+notificarNodo = publicarNodo;
 
 // ==== Logs ====
 logsServidor.configurar(criarLogRepository(db, notificarLog));

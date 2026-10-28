@@ -18,6 +18,7 @@ export function criarNodeMonitor({
   log,
   aoReiniciar = null,
   aoSnapshot = null,
+  aoAtualizar = null,
   intervaloMs = 30_000,
   timeoutMs = 2_000,
   autoRebootRecovery = false,
@@ -53,6 +54,18 @@ export function criarNodeMonitor({
   let rodadaAtual = null;
 
   const agora = () => Math.floor(Date.now() / 1000);
+
+  // Notifica alterações sem interferir no monitoramento
+  function avisarAtualizacao(deviceId) {
+    try {
+      aoAtualizar?.({ deviceId });
+    } catch (err) {
+      log.warn(
+        { module: "NODES", device_id: deviceId, err },
+        "Falha ao notificar atualização do nodo",
+      );
+    }
+  }
 
   function estado(deviceId) {
     if (!estados.has(deviceId)) {
@@ -218,6 +231,9 @@ export function criarNodeMonitor({
     s.last_error = null;
     s.duracao_ms = null;
     s.origem = "recovery";
+
+    avisarAtualizacao(deviceId);
+
     if (!anterior) {
       log.warn({ module: "NODES", device_id: deviceId }, "Nodo em RECOVERY");
       telegramEnviarNodo(deviceId, "em RECOVERY!");
@@ -280,6 +296,7 @@ export function criarNodeMonitor({
 
       if (s.falhas >= falhasOffline && s.status !== "offline") {
         s.status = "offline";
+        avisarAtualizacao(deviceId);
         if (nodes.buscar(deviceId)?.enabled) {
           log.warn({ device_id: deviceId, erro: erro.message }, "Nodo OFFLINE");
           telegramEnviarNodo(deviceId, `OFFLINE!! [${erro.message}]`);
@@ -344,6 +361,8 @@ export function criarNodeMonitor({
     ) {
       nodes.salvarSnapshot(deviceId, resultado.snapshot);
     }
+
+    avisarAtualizacao(deviceId);
 
     return resultado;
   }
@@ -480,6 +499,8 @@ export function criarNodeMonitor({
       telegramEnviarNodo(node.device_id, msg);
     }
 
+    avisarAtualizacao(node.device_id);
+
     return true;
   }
 
@@ -511,6 +532,7 @@ export function criarNodeMonitor({
 
     resetar(deviceId) {
       estados.delete(deviceId.toUpperCase());
+      avisarAtualizacao(deviceId.toUpperCase());
     },
 
     iniciar() {

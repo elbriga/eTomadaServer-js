@@ -72,6 +72,11 @@
   background: #fee2e2;
 }
 
+.nodo-status-recovery {
+  color: #7c2d12;
+  background: #fdba74;
+}
+
 .nodo-status-unknown {
   color: #92400e;
   background: #fef3c7;

@@ -36,11 +36,20 @@ export function registrarSse(app) {
     clients.clear();
   });
 
-  return function notificarLog(id) {
-    const data = `event: log\ndata: ${JSON.stringify({ id })}\n\n`;
+  function notificar(evento, dados) {
+    const data = `event: ${evento}\ndata: ${JSON.stringify(dados)}\n\n`;
 
     for (const res of clients) {
       if (!res.destroyed && !res.write(data)) res.destroy();
     }
+  }
+
+  return {
+    notificarLog(id) {
+      notificar("log", { id });
+    },
+    notificarNodo(deviceId) {
+      notificar("node", { device_id: deviceId });
+    },
   };
 }

@@ -11,6 +11,7 @@ const comparador = new Intl.Collator("pt-BR", {
 const estados = {
   online: "ONLINE",
   offline: "OFFLINE",
+  recovery: "RECOVERY",
   unknown: "DESCONHECIDO",
   disabled: "DESABILITADO",
 };
@@ -18,6 +19,7 @@ const estados = {
 let nodos = [];
 let ordenacao = { campo: "device_id", direcao: 1 };
 let carregando = false;
+let atualizacaoPendente = false;
 
 function valor(nodo, campo) {
   const snapshot = nodo.snapshot ?? {};
@@ -173,7 +175,10 @@ function renderizarNodos() {
 
 // Consulta somente o estado consolidado do servidor
 async function carregarNodos() {
-  if (carregando) return;
+  if (carregando) {
+    atualizacaoPendente = true;
+    return;
+  }
   carregando = true;
 
   try {
@@ -199,6 +204,10 @@ async function carregarNodos() {
     console.error("Nodos:", erro);
   } finally {
     carregando = false;
+    if (atualizacaoPendente) {
+      atualizacaoPendente = false;
+      void carregarNodos();
+    }
   }
 }
 
@@ -225,4 +234,24 @@ for (const botao of document.querySelectorAll(
 }
 
 carregarNodos();
-setInterval(carregarNodos, 30000);
+
+// SSE > agrupa atualizações próximas dos nodos
+let timerSse = null;
+const eventosNodos = new EventSource("/api/events");
+
+eventosNodos.addEventListener("node", () => {
+  clearTimeout(timerSse);
+  timerSse = setTimeout(carregarNodos, 500);
+});
+
+eventosNodos.onopen = () => {
+  console.log("SSE NODOS conectado");
+  carregarNodos();
+};
+
+eventosNodos.onerror = () => {
+  console.warn("SSE NODOS desconectado; aguardando reconexão");
+};
+
+// Atualização de segurança independente do SSE
+setInterval(carregarNodos, 120000);
