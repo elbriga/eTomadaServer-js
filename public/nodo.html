@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="/static/estilo.css" />
     <link rel="stylesheet" href="/static/nodos.css" />
     <link rel="stylesheet" href="/static/nodo.css" />
+    <link rel="stylesheet" href="/static/ruleEditor.css" />
     <script src="/static/dom.js" defer></script>
+    <script src="/static/ruleEditor.js" defer></script>
     <script src="/static/nodo.js" defer></script>
   </head>
   <body>
@@ -182,6 +184,15 @@
             <tbody id="nodo-recursos-body"></tbody>
           </table>
         </div>
+      </section>
+
+      <section id="nodo-regras-painel" class="nodo-painel nodo-regras" hidden>
+        <div id="nodo-regras-editor"></div>
+        <p class="regra-nota">
+          As regras são armazenadas no servidor. Alterações em nodos offline
+          serão sincronizadas quando a comunicação retornar, conforme a
+          configuração de sincronização.
+        </p>
       </section>
     </main>
   </body>

@@ -1,0 +1,142 @@
+.nodo-regras {
+  margin-top: 16px;
+}
+
+.nodo-regras[hidden],
+.regra-form[hidden],
+.regra-form [hidden] {
+  display: none !important;
+}
+
+.regra-cabecalho,
+.regra-botoes {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.regra-cabecalho h3 {
+  margin: 0;
+}
+
+.regra-cabecalho button,
+.regra-tabela button {
+  margin: 2px;
+  padding: 0 10px;
+  height: 30px;
+}
+
+.regra-mensagem,
+.regra-nota {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.regra-tabela-scroll {
+  overflow-x: auto;
+  margin-top: 14px;
+}
+
+.regra-tabela {
+  min-width: 800px;
+}
+
+.regra-tabela th,
+.regra-tabela td {
+  padding: 9px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.regra-tabela tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.regra-tabela td:last-child {
+  white-space: nowrap;
+}
+
+.regra-form {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+
+.regra-form h4 {
+  margin: 0 0 16px;
+}
+
+.regra-form fieldset {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+}
+
+.regra-form legend {
+  padding: 0 6px;
+  font-weight: bold;
+}
+
+.regra-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.regra-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.regra-grid input,
+.regra-grid select {
+  width: 100%;
+  min-width: 0;
+}
+
+.regra-grid .regra-check,
+.regra-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+
+.regra-check input {
+  width: auto;
+  height: 16px;
+  min-width: 0;
+}
+
+.regra-botoes {
+  justify-content: flex-start;
+}
+
+.regra-botoes button:last-child {
+  background: #64748b;
+}
+
+.regra-form button:disabled,
+.regra-tabela button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .regra-form {
+    padding: 10px;
+  }
+
+  .regra-grid {
+    grid-template-columns: 1fr;
+  }
+}

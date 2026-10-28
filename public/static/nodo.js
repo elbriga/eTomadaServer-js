@@ -17,6 +17,7 @@ const mensagemCadastro = $("nodo-edicao-mensagem");
 const painelRecursos = $("nodo-recursos-painel");
 const corpoRecursos = $("nodo-recursos-body");
 const mensagemRecursos = $("nodo-recursos-mensagem");
+const painelRegras = $("nodo-regras-painel");
 
 const estados = {
   new: "NOVO",
@@ -40,6 +41,7 @@ let recursosAtuais = [];
 let editandoRecurso = null;
 let salvandoRecurso = false;
 let carregandoRecursos = false;
+let editorRegras = null;
 
 try {
   deviceId = decodeURIComponent(
@@ -200,6 +202,19 @@ function renderizar(nodo) {
     $(`nodo-${id}`).textContent = exibir(valor);
   }
 
+  // Regras locais > carregar o editor apenas para nodos Full cadastrados.
+  const full = (nodo.api ?? nodo.snapshot?.api)?.toUpperCase() === "FULL";
+  painelRegras.hidden = nodo.pendente || !full;
+
+  if (!painelRegras.hidden && !editorRegras) {
+    editorRegras = criarEditorRegras({
+      container: $("nodo-regras-editor"),
+      escopo: "LOCAL",
+      deviceId: nodo.device_id,
+    });
+    void editorRegras.carregar();
+  }
+
   const alertas = [];
   if (nodo.pendente) {
     alertas.push(
@@ -246,6 +261,7 @@ async function carregarNodo() {
       botaoAdicionar.hidden = true;
       painelCadastro.hidden = true;
       painelRecursos.hidden = true;
+      painelRegras.hidden = true;
       ultimoNodo = null;
       status.textContent = "NÃO ENCONTRADO";
       status.className = "nodo-status nodo-status-unknown";
