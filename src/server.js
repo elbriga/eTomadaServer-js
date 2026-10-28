@@ -198,6 +198,9 @@ app.get("/historico", (request, reply) => {
 app.get("/nodos", (request, reply) => {
   return reply.sendFile("nodos.html");
 });
+app.get("/nodos/:device_id", (request, reply) => {
+  return reply.sendFile("nodo.html");
+});
 // SSE
 const { notificarLog, notificarNodo: publicarNodo } = registrarSse(app);
 notificarNodo = publicarNodo;

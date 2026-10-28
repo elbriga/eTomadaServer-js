@@ -1,0 +1,107 @@
+.nodo-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.nodo-voltar {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.nodo-voltar:hover {
+  text-decoration: underline;
+}
+
+.nodo-topo,
+.nodo-painel-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.nodo-topo {
+  margin-bottom: 18px;
+}
+
+.nodo-topo h2 {
+  margin: 0 0 6px;
+}
+
+.nodo-topo p {
+  margin: 0;
+  color: #64748b;
+}
+
+.nodo-painel {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.nodo-painel h3 {
+  margin: 0;
+}
+
+.nodo-mensagem {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.nodo-aviso {
+  padding: 10px 12px;
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 5px;
+  font-size: 13px;
+}
+
+.nodo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin: 20px 0 0;
+}
+
+.nodo-grid[hidden],
+.nodo-aviso[hidden] {
+  display: none;
+}
+
+.nodo-grid > div {
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 5px;
+  min-width: 0;
+}
+
+.nodo-grid dt {
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.nodo-grid dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .nodo-container {
+    padding: 12px;
+  }
+
+  .nodo-painel {
+    padding: 14px;
+  }
+
+  .nodo-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}

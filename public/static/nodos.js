@@ -127,6 +127,13 @@ function renderizarNodos() {
       tr.appendChild(td);
     }
 
+    // Link para a administração individual do nodo
+    const link = document.createElement("a");
+    link.href = `/nodos/${encodeURIComponent(nodo.device_id)}`;
+    link.className = "nodo-link";
+    link.textContent = nodo.device_id;
+    tr.children[0].replaceChildren(link);
+
     // Substitui o texto do status pelo indicador visual
     const status = valor(nodo, "status");
     const indicador = document.createElement("span");

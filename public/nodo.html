@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+    <title>Nodo - eTomada Server</title>
+    <link rel="stylesheet" href="/static/estilo.css" />
+    <link rel="stylesheet" href="/static/nodos.css" />
+    <link rel="stylesheet" href="/static/nodo.css" />
+    <script src="/static/nodo.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <h1>eTomada Server</h1>
+      <nav>
+        <a href="/">Logs</a>
+        <a href="/historico">Histórico</a>
+        <a href="/nodos" aria-current="page">Nodos</a>
+      </nav>
+    </header>
+    <main class="nodo-container">
+      <a class="nodo-voltar" href="/nodos">← Voltar à listagem</a>
+
+      <div class="nodo-topo">
+        <div>
+          <h2 id="nodo-titulo">Nodo</h2>
+          <p id="nodo-nome">—</p>
+        </div>
+        <span id="nodo-status" class="nodo-status nodo-status-unknown">
+          DESCONHECIDO
+        </span>
+      </div>
+
+      <section class="nodo-painel">
+        <div class="nodo-painel-titulo">
+          <h3>Informações do nodo</h3>
+          <button id="nodo-atualizar" type="button">Atualizar</button>
+        </div>
+
+        <p id="nodo-mensagem" class="nodo-mensagem" role="status">
+          Carregando...
+        </p>
+        <p id="nodo-aviso" class="nodo-aviso" hidden></p>
+
+        <dl id="nodo-dados" class="nodo-grid" hidden>
+          <div>
+            <dt>Device ID</dt>
+            <dd id="nodo-device-id">—</dd>
+          </div>
+          <div>
+            <dt>Nome cadastrado</dt>
+            <dd id="nodo-nome-cadastro">—</dd>
+          </div>
+          <div>
+            <dt>API</dt>
+            <dd id="nodo-api">—</dd>
+          </div>
+          <div>
+            <dt>Modelo</dt>
+            <dd id="nodo-modelo">—</dd>
+          </div>
+          <div>
+            <dt>Board</dt>
+            <dd id="nodo-board">—</dd>
+          </div>
+          <div>
+            <dt>Firmware</dt>
+            <dd id="nodo-firmware">—</dd>
+          </div>
+          <div>
+            <dt>MAC</dt>
+            <dd id="nodo-mac">—</dd>
+          </div>
+          <div>
+            <dt>IP (último snapshot)</dt>
+            <dd id="nodo-ip">—</dd>
+          </div>
+          <div>
+            <dt>SSID</dt>
+            <dd id="nodo-ssid">—</dd>
+          </div>
+          <div>
+            <dt>Sinal Wi-Fi</dt>
+            <dd id="nodo-sinal">—</dd>
+          </div>
+          <div>
+            <dt>Uptime</dt>
+            <dd id="nodo-uptime">—</dd>
+          </div>
+          <div>
+            <dt>Memória livre</dt>
+            <dd id="nodo-memoria">—</dd>
+          </div>
+          <div>
+            <dt>Último contato</dt>
+            <dd id="nodo-contato">—</dd>
+          </div>
+          <div>
+            <dt>Último snapshot</dt>
+            <dd id="nodo-snapshot">—</dd>
+          </div>
+          <div>
+            <dt>Última consulta</dt>
+            <dd id="nodo-consulta">—</dd>
+          </div>
+          <div>
+            <dt>Recursos no snapshot</dt>
+            <dd id="nodo-recursos">—</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+  </body>
+</html>

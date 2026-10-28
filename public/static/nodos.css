@@ -123,3 +123,13 @@
 .nodos-tabela tbody tr:hover {
   background-color: #ffed62;
 }
+
+.nodos-tabela .nodo-link {
+  color: #1e40af;
+  text-decoration: none;
+}
+
+.nodos-tabela .nodo-link:hover,
+.nodos-tabela .nodo-link:focus-visible {
+  text-decoration: underline;
+}
