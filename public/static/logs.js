@@ -33,7 +33,7 @@ function getNodeColor(deviceId) {
 async function carregarNodos() {
   const response = await fetch("/api/logs/nodes");
   const nodes = await response.json();
-  const select = document.getElementById("device");
+  const select = $("device");
   const valorAtual = select.value;
 
   select.innerHTML = '<option value="">Todos</option>';
@@ -48,10 +48,10 @@ async function carregarNodos() {
 }
 
 async function carregarLogs() {
-  const device = document.getElementById("device").value;
-  const level = document.getElementById("level").value;
-  const module = document.getElementById("module").value;
-  const search = document.getElementById("search").value;
+  const device = $("device").value;
+  const level = $("level").value;
+  const module = $("module").value;
+  const search = $("search").value;
   const params = new URLSearchParams();
 
   if (device) params.set("deviceID", device);
@@ -62,7 +62,7 @@ async function carregarLogs() {
   const response = await fetch("/api/logs?" + params.toString());
   const logs = await response.json();
 
-  const tbody = document.getElementById("logs");
+  const tbody = $("logs");
   tbody.innerHTML = "";
   for (const log of logs) {
     const tr = document.createElement("tr");
@@ -107,7 +107,7 @@ async function carregarLogs() {
     tbody.appendChild(tr);
   }
 
-  document.getElementById("status").textContent = `${logs.length} logs`;
+  $("status").textContent = `${logs.length} logs`;
 }
 
 function formataData(ts) {

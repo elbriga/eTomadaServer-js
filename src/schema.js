@@ -1,7 +1,8 @@
 // Versão 1: esquema legado + cadastro centralizado de nodos.
 // ...
 // Versão 7: Novos Nodos
-export const SCHEMA_VERSION = 7;
+// Versão 8: Descrição administrativa dos nodos
+export const SCHEMA_VERSION = 8;
 
 const COLUNAS = {
   logs: [
@@ -43,6 +44,7 @@ const COLUNAS = {
   nodes: [
     "device_id",
     "nome",
+    "descricao",
     "enabled",
     "api",
     "device_model",
@@ -325,6 +327,13 @@ const migracoes = {
         first_seen_at INTEGER NOT NULL,
         last_seen_at INTEGER NOT NULL
       );
+    `);
+  },
+
+  8(db) {
+    db.exec(`
+      ALTER TABLE nodes
+        ADD COLUMN descricao TEXT NOT NULL DEFAULT '';
     `);
   },
 };

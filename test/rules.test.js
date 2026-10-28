@@ -73,7 +73,7 @@ const localBody = {
   },
 };
 
-test("schema atual e migração 4→7", () => {
+test("schema atual e migração 4→8", () => {
   const db = prepararBanco();
 
   try {
@@ -87,6 +87,7 @@ test("schema atual e migração 4→7", () => {
       DROP TABLE nodes_pending;
       DROP TABLE node_recovery;
       DROP TABLE rules;
+      ALTER TABLE nodes DROP COLUMN descricao;
       PRAGMA user_version = 4;
 
       INSERT INTO logs (timestamp, device_id, message)

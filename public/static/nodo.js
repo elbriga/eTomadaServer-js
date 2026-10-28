@@ -1,11 +1,21 @@
-const titulo = document.getElementById("nodo-titulo");
-const nome = document.getElementById("nodo-nome");
-const status = document.getElementById("nodo-status");
-const mensagem = document.getElementById("nodo-mensagem");
-const aviso = document.getElementById("nodo-aviso");
-const dados = document.getElementById("nodo-dados");
-const botaoAtualizar = document.getElementById("nodo-atualizar");
-const botaoAdicionar = document.getElementById("nodo-adicionar");
+const titulo = $("nodo-titulo");
+const nome = $("nodo-nome");
+const status = $("nodo-status");
+const mensagem = $("nodo-mensagem");
+const aviso = $("nodo-aviso");
+const dados = $("nodo-dados");
+const botaoAtualizar = $("nodo-atualizar");
+const botaoAdicionar = $("nodo-adicionar");
+const painelCadastro = $("nodo-edicao");
+const formCadastro = $("nodo-form");
+const campoNome = $("nodo-editar-nome");
+const campoDescricao = $("nodo-editar-descricao");
+const campoEnabled = $("nodo-editar-enabled");
+const botaoSalvarCadastro = $("nodo-salvar");
+const mensagemCadastro = $("nodo-edicao-mensagem");
+const painelRecursos = $("nodo-recursos-painel");
+const corpoRecursos = $("nodo-recursos-body");
+const mensagemRecursos = $("nodo-recursos-mensagem");
 
 const estados = {
   new: "NOVO",
@@ -22,6 +32,13 @@ let carregando = false;
 let atualizacaoPendente = false;
 let timerSse = null;
 let verificandoNovoNodo = false;
+let ultimoNodo = null;
+let cadastroSujo = false;
+let salvandoCadastro = false;
+let recursosAtuais = [];
+let editandoRecurso = null;
+let salvandoRecurso = false;
+let carregandoRecursos = false;
 
 try {
   deviceId = decodeURIComponent(
@@ -60,7 +77,81 @@ function formataData(segundos) {
     : "—";
 }
 
+async function apiJson(url, opcoes = {}) {
+  const resposta = await fetch(url, { cache: "no-store", ...opcoes });
+  const resultado = await resposta.json().catch(() => null);
+
+  if (!resposta.ok) {
+    throw new Error(resultado?.detail ?? `HTTP ${resposta.status}`);
+  }
+
+  return resultado;
+}
+
+function preencherCadastro(nodo) {
+  if (cadastroSujo || salvandoCadastro || nodo.pendente) return;
+
+  campoNome.value = nodo.nome ?? "";
+  campoDescricao.value = nodo.descricao ?? "";
+  campoEnabled.checked = Boolean(nodo.enabled);
+}
+
+// Edição administrativa > não substituir campos que estão sendo alterados.
+formCadastro.addEventListener("input", () => {
+  cadastroSujo = true;
+});
+
+$("nodo-cancelar").addEventListener("click", () => {
+  cadastroSujo = false;
+  mensagemCadastro.textContent = "";
+  if (ultimoNodo) preencherCadastro(ultimoNodo);
+});
+
+formCadastro.addEventListener("submit", async (evento) => {
+  evento.preventDefault();
+
+  if (!deviceId || !ultimoNodo || ultimoNodo.pendente || salvandoCadastro) {
+    return;
+  }
+
+  salvandoCadastro = true;
+  botaoSalvarCadastro.disabled = true;
+  mensagemCadastro.textContent = "Salvando cadastro...";
+
+  try {
+    const salvo = await apiJson(`/api/nodes/${encodeURIComponent(deviceId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome: campoNome.value.trim(),
+        descricao: campoDescricao.value.trim(),
+        enabled: campoEnabled.checked,
+      }),
+    });
+
+    cadastroSujo = false;
+    ultimoNodo = { ...ultimoNodo, ...salvo };
+    nome.textContent = salvo.nome || "Sem nome configurado";
+    mensagemCadastro.textContent = "Cadastro salvo com sucesso.";
+  } catch (erro) {
+    mensagemCadastro.textContent = `Erro: ${erro.message}`;
+  } finally {
+    salvandoCadastro = false;
+    botaoSalvarCadastro.disabled = false;
+
+    if (!cadastroSujo && ultimoNodo) {
+      preencherCadastro(ultimoNodo);
+      void carregarNodo();
+    }
+  }
+});
+
 function renderizar(nodo) {
+  ultimoNodo = nodo;
+  painelCadastro.hidden = Boolean(nodo.pendente);
+  painelRecursos.hidden = Boolean(nodo.pendente);
+  preencherCadastro(nodo);
+
   const snapshot = nodo.snapshot ?? {};
   const estado = nodo.pendente
     ? "new"
@@ -103,7 +194,7 @@ function renderizar(nodo) {
   };
 
   for (const [id, valor] of Object.entries(campos)) {
-    document.getElementById(`nodo-${id}`).textContent = exibir(valor);
+    $(`nodo-${id}`).textContent = exibir(valor);
   }
 
   const alertas = [];
@@ -150,6 +241,9 @@ async function carregarNodo() {
       dados.hidden = true;
       aviso.hidden = true;
       botaoAdicionar.hidden = true;
+      painelCadastro.hidden = true;
+      painelRecursos.hidden = true;
+      ultimoNodo = null;
       status.textContent = "NÃO ENCONTRADO";
       status.className = "nodo-status nodo-status-unknown";
       mensagem.textContent = `Nodo ${deviceId} não encontrado no cadastro.`;
@@ -157,6 +251,9 @@ async function carregarNodo() {
     }
 
     renderizar(nodo);
+    if (!nodo.pendente) {
+      await carregarRecursos();
+    }
     mensagem.textContent = `Atualizado às ${new Date().toLocaleTimeString("pt-BR")}`;
   } catch (erro) {
     mensagem.textContent = `Erro ao atualizar: ${erro.message}`;
@@ -237,6 +334,224 @@ async function adicionarNodo() {
     botaoAdicionar.disabled = false;
   }
 }
+
+function celula(tr, texto) {
+  const td = document.createElement("td");
+  td.textContent = exibir(texto);
+  tr.appendChild(td);
+  return td;
+}
+
+function estadoReportado(recurso) {
+  if (!recurso.reported_json) return "—";
+
+  try {
+    const estado = JSON.parse(recurso.reported_json);
+    if (!estado || typeof estado !== "object") return "—";
+
+    return (
+      Object.entries(estado)
+        .map(([campo, valor]) => {
+          if (campo === "estado") {
+            if (valor === true || valor === 1) return "LIGADO";
+            if (valor === false || valor === 0) return "DESLIGADO";
+          }
+          return `${campo}: ${valor}`;
+        })
+        .join(", ") || "—"
+    );
+  } catch {
+    return "—";
+  }
+}
+
+function botaoRecurso(td, acao, texto, secundario = false) {
+  const botao = document.createElement("button");
+  botao.type = "button";
+  botao.dataset.acao = acao;
+  botao.textContent = texto;
+  if (secundario) botao.className = "botao-secundario";
+  td.appendChild(botao);
+}
+
+function campoRecurso(tr, campo, valor, maxLength) {
+  const td = document.createElement("td");
+  const input = document.createElement("input");
+
+  input.type = "text";
+  input.dataset.campo = campo;
+  input.maxLength = maxLength;
+  input.value = valor ?? "";
+
+  if (campo === "global_id") {
+    input.placeholder = "GLOBAL_ID";
+  }
+
+  td.appendChild(input);
+  tr.appendChild(td);
+}
+
+function renderizarRecursos() {
+  const linhas = [];
+
+  for (const recurso of recursosAtuais) {
+    const tr = document.createElement("tr");
+    tr.dataset.recursoId = recurso.recurso_id;
+
+    const editando = recurso.recurso_id === editandoRecurso;
+
+    celula(tr, recurso.recurso_id);
+    celula(tr, recurso.nome);
+    celula(tr, recurso.tipo);
+
+    if (editando) {
+      campoRecurso(tr, "global_id", recurso.global_id, 64);
+      campoRecurso(tr, "nome_configurado", recurso.nome_configurado, 100);
+      campoRecurso(tr, "descricao", recurso.descricao, 500);
+    } else {
+      celula(tr, recurso.global_id);
+      celula(tr, recurso.nome_configurado);
+      celula(tr, recurso.descricao);
+    }
+
+    const tdEstado = celula(tr, estadoReportado(recurso));
+    if (recurso.reported_at) {
+      tdEstado.title = `Último estado: ${formataData(recurso.reported_at)}`;
+    }
+
+    const acoes = document.createElement("td");
+    if (editando) {
+      botaoRecurso(acoes, "salvar", "Salvar");
+      botaoRecurso(acoes, "cancelar", "Cancelar", true);
+    } else {
+      botaoRecurso(acoes, "editar", "Editar");
+      acoes.querySelector("button").disabled = editandoRecurso !== null;
+    }
+    tr.appendChild(acoes);
+    linhas.push(tr);
+  }
+
+  corpoRecursos.replaceChildren(...linhas);
+
+  if (!recursosAtuais.length) {
+    mensagemRecursos.textContent = "Nenhum recurso cadastrado neste nodo.";
+  } else {
+    mensagemRecursos.textContent = `${recursosAtuais.length} recursos cadastrados.`;
+  }
+}
+
+// Recursos cadastrados no SQLite, não apenas no último snapshot.
+async function carregarRecursos() {
+  if (
+    !deviceId ||
+    editandoRecurso !== null ||
+    salvandoRecurso ||
+    carregandoRecursos
+  ) {
+    return;
+  }
+
+  carregandoRecursos = true;
+
+  try {
+    const lista = await apiJson(
+      `/api/nodes/${encodeURIComponent(deviceId)}/resources`,
+    );
+
+    if (!Array.isArray(lista)) throw new Error("Resposta inválida");
+
+    // Evita substituir um editor aberto enquanto a consulta estava em voo.
+    if (editandoRecurso === null && !salvandoRecurso) {
+      recursosAtuais = lista;
+      renderizarRecursos();
+    }
+  } catch (erro) {
+    mensagemRecursos.textContent = `Erro ao carregar recursos: ${erro.message}`;
+  } finally {
+    carregandoRecursos = false;
+  }
+}
+
+async function salvarRecurso(tr, recursoId) {
+  if (salvandoRecurso) return;
+
+  const campo = (nome) =>
+    tr.querySelector(`[data-campo="${nome}"]`)?.value.trim() ?? "";
+
+  const globalId = campo("global_id").toUpperCase();
+
+  if (globalId && !/^[A-Z][A-Z0-9_]*$/.test(globalId)) {
+    mensagemRecursos.textContent =
+      "global_id inválido. Use letras, números e _, começando por letra.";
+    return;
+  }
+
+  const alteracoes = {
+    global_id: globalId || null,
+    nome_configurado: campo("nome_configurado"),
+    descricao: campo("descricao"),
+  };
+
+  salvandoRecurso = true;
+  tr.querySelectorAll("button").forEach((b) => {
+    b.disabled = true;
+  });
+
+  let sucesso = false;
+
+  try {
+    await apiJson(
+      `/api/nodes/${encodeURIComponent(deviceId)}/resources/` +
+        encodeURIComponent(recursoId),
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(alteracoes),
+      },
+    );
+
+    editandoRecurso = null;
+    sucesso = true;
+  } catch (erro) {
+    mensagemRecursos.textContent = `Erro ao salvar ${recursoId}: ${erro.message}`;
+  } finally {
+    salvandoRecurso = false;
+    tr.querySelectorAll("button").forEach((b) => {
+      b.disabled = false;
+    });
+  }
+
+  if (sucesso) {
+    await carregarRecursos();
+    mensagemRecursos.textContent = `Recurso ${recursoId} salvo com sucesso.`;
+  }
+}
+
+// Ações de cada linha, sem recriar listeners em cada atualização.
+corpoRecursos.addEventListener("click", async (evento) => {
+  const botao = evento.target.closest("button[data-acao]");
+  if (!botao || salvandoRecurso) return;
+
+  const tr = botao.closest("tr");
+  const recursoId = tr?.dataset.recursoId;
+  if (!recursoId) return;
+
+  switch (botao.dataset.acao) {
+    case "editar":
+      editandoRecurso = recursoId;
+      renderizarRecursos();
+      break;
+
+    case "cancelar":
+      editandoRecurso = null;
+      await carregarRecursos();
+      break;
+
+    case "salvar":
+      await salvarRecurso(tr, recursoId);
+      break;
+  }
+});
 
 if (!deviceId) {
   mensagem.textContent = "Identificador de nodo inválido.";

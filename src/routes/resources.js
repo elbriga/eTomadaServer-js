@@ -1,5 +1,6 @@
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
+import { criarRuleRepository } from "../repositories/ruleRepository.js";
 import {
   criarResourceService,
   ResourceCommandError,
@@ -22,6 +23,7 @@ export default async function resourcesRoutes(
 ) {
   const resources = criarResourceRepository(db);
   const nodes = criarNodeRepository(db);
+  const rules = criarRuleRepository(db);
   const commandHistory = criarCommandRepository(db);
   const comandos =
     comandosCompartilhados ??
@@ -383,6 +385,33 @@ export default async function resourcesRoutes(
     },
     (request, reply) => {
       const { device_id, recurso_id } = request.params;
+
+      // Protege referências de regras globais ao renomear global_id
+      const atual = resources.buscar(device_id, recurso_id);
+      if (atual?.global_id && request.body.global_id !== undefined) {
+        const novoId = request.body.global_id?.trim().toUpperCase() ?? null;
+
+        if (novoId !== atual.global_id) {
+          const dependentes = rules
+            .listar({ escopo: "GLOBAL" })
+            .filter((regra) =>
+              [
+                regra.quando?.recurso,
+                regra.quando?.check?.variavel,
+                regra.acao?.recurso,
+              ].some((id) => id?.toUpperCase() === atual.global_id),
+            );
+
+          if (dependentes.length) {
+            return reply.code(409).send({
+              detail:
+                `global_id utilizado pelas regras: ` +
+                dependentes.map((r) => `#${r.id} ${r.nome}`).join(", "),
+              rules: dependentes.map((r) => r.id),
+            });
+          }
+        }
+      }
 
       try {
         return (

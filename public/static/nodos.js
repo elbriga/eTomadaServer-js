@@ -1,7 +1,7 @@
-const tabelaNodos = document.getElementById("nodos-corpo");
-const filtroNodos = document.getElementById("nodos-filtro");
-const resumoNodos = document.getElementById("nodos-resumo");
-const atualizacaoNodos = document.getElementById("nodos-atualizacao");
+const tabelaNodos = $("nodos-corpo");
+const filtroNodos = $("nodos-filtro");
+const resumoNodos = $("nodos-resumo");
+const atualizacaoNodos = $("nodos-atualizacao");
 
 const comparador = new Intl.Collator("pt-BR", {
   numeric: true,

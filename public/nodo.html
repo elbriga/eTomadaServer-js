@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/estilo.css" />
     <link rel="stylesheet" href="/static/nodos.css" />
     <link rel="stylesheet" href="/static/nodo.css" />
+    <script src="/static/dom.js" defer></script>
     <script src="/static/nodo.js" defer></script>
   </head>
   <body>
@@ -31,6 +32,43 @@
           DESCONHECIDO
         </span>
       </div>
+
+      <section id="nodo-edicao" class="nodo-painel nodo-edicao" hidden>
+        <h3>Cadastro do nodo</h3>
+        <form id="nodo-form" class="nodo-form">
+          <div class="nodo-campos">
+            <label>
+              Nome amigável
+              <input
+                id="nodo-editar-nome"
+                type="text"
+                maxlength="100"
+                placeholder="Nome do nodo"
+              />
+            </label>
+            <label>
+              Descrição
+              <input
+                id="nodo-editar-descricao"
+                type="text"
+                maxlength="500"
+                placeholder="Descrição do nodo"
+              />
+            </label>
+          </div>
+          <label class="nodo-checkbox">
+            <input id="nodo-editar-enabled" type="checkbox" />
+            Monitoramento habilitado
+          </label>
+          <div class="nodo-form-acoes">
+            <button id="nodo-salvar" type="submit">Salvar cadastro</button>
+            <button id="nodo-cancelar" class="botao-secundario" type="button">
+              Cancelar
+            </button>
+          </div>
+        </form>
+        <p id="nodo-edicao-mensagem" class="nodo-mensagem" role="status"></p>
+      </section>
 
       <section class="nodo-painel">
         <div class="nodo-painel-titulo">
@@ -114,6 +152,32 @@
             <dd id="nodo-recursos">—</dd>
           </div>
         </dl>
+      </section>
+
+      <section
+        id="nodo-recursos-painel"
+        class="nodo-painel nodo-recursos"
+        hidden
+      >
+        <h3>Recursos do nodo</h3>
+        <p id="nodo-recursos-mensagem" class="nodo-mensagem" role="status"></p>
+        <div class="nodo-tabela-scroll">
+          <table class="nodo-recursos-tabela">
+            <thead>
+              <tr>
+                <th>ID local</th>
+                <th>Nome firmware</th>
+                <th>Tipo</th>
+                <th>Global ID</th>
+                <th>Nome configurado</th>
+                <th>Descrição</th>
+                <th>Último estado</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="nodo-recursos-body"></tbody>
+          </table>
+        </div>
       </section>
     </main>
   </body>

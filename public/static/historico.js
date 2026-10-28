@@ -1,5 +1,5 @@
 "use strict";
-const el = (id) => document.getElementById(id);
+const el = (id) => $(id);
 const fields = { valor: "Valor", estado: "Estado", estado2: "Estado do fan" };
 const LIMIT = 10000;
 let resources = [];

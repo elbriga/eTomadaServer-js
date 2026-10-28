@@ -15,6 +15,7 @@ const paramsSchema = {
 
 const camposEditaveis = {
   nome: { type: "string", maxLength: 100 },
+  descricao: { type: "string", maxLength: 500 },
   enabled: { type: "boolean" },
 };
 
@@ -138,6 +139,10 @@ export default async function nodesRoutes(app, { db, monitor }) {
 
       if (alteracoes.nome !== undefined) {
         alteracoes.nome = alteracoes.nome.trim();
+      }
+
+      if (alteracoes.descricao !== undefined) {
+        alteracoes.descricao = alteracoes.descricao.trim();
       }
 
       const anterior = nodes.buscar(request.params.device_id);

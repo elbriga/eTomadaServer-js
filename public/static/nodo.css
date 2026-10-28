@@ -125,3 +125,112 @@
 #nodo-adicionar[hidden] {
   display: none;
 }
+
+/* Administração do cadastro e dos recursos */
+.nodo-edicao {
+  margin-bottom: 16px;
+}
+
+.nodo-recursos {
+  margin-top: 16px;
+}
+
+#nodo-edicao[hidden],
+#nodo-recursos-painel[hidden] {
+  display: none;
+}
+
+.nodo-form {
+  margin-top: 16px;
+}
+
+.nodo-campos {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(250px, 2fr);
+  gap: 14px;
+}
+
+.nodo-campos label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.nodo-campos input {
+  width: 100%;
+  min-width: 0;
+}
+
+.nodo-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.nodo-checkbox input {
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+}
+
+.nodo-form-acoes {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.botao-secundario {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.botao-secundario:hover {
+  background: #cbd5e1;
+}
+
+.nodo-tabela-scroll {
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+.nodo-recursos-tabela {
+  min-width: 950px;
+  table-layout: auto;
+}
+
+.nodo-recursos-tabela th,
+.nodo-recursos-tabela td {
+  padding: 9px;
+  vertical-align: middle;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.nodo-recursos-tabela tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.nodo-recursos-tabela input {
+  width: 100%;
+  min-width: 100px;
+  max-width: 280px;
+}
+
+.nodo-recursos-tabela button {
+  height: 30px;
+  padding: 0 10px;
+  margin: 2px;
+}
+
+.nodo-recursos-tabela td:last-child {
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .nodo-campos {
+    grid-template-columns: 1fr;
+  }
+}

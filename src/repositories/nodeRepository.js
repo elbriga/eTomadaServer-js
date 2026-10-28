@@ -1,6 +1,6 @@
 export function criarNodeRepository(db) {
   const campos = `
-    device_id, nome, enabled, api, device_model, device_board,
+    device_id, nome, descricao, enabled, api, device_model, device_board,
     fw_version, mac, ssid, last_seen_at, last_snapshot_at,
     created_at, updated_at
   `;
@@ -23,14 +23,14 @@ export function criarNodeRepository(db) {
   `);
 
   const insert = db.prepare(`
-    INSERT INTO nodes (device_id, nome, enabled)
-    VALUES (?, ?, ?)
+    INSERT INTO nodes (device_id, nome, descricao, enabled)
+    VALUES (?, ?, ?, ?)
     ON CONFLICT(device_id) DO NOTHING
   `);
 
   const update = db.prepare(`
     UPDATE nodes
-    SET nome = ?, enabled = ?, updated_at = unixepoch()
+    SET nome = ?, descricao = ?, enabled = ?, updated_at = unixepoch()
     WHERE device_id = ?
   `);
 
@@ -75,8 +75,8 @@ export function criarNodeRepository(db) {
       return formatar(selectUm.get(deviceId));
     },
 
-    criar({ device_id, nome = "", enabled = true }) {
-      const result = insert.run(device_id, nome, enabled ? 1 : 0);
+    criar({ device_id, nome = "", descricao = "", enabled = true }) {
+      const result = insert.run(device_id, nome, descricao, enabled ? 1 : 0);
 
       if (result.changes === 0) return null;
 
@@ -88,9 +88,10 @@ export function criarNodeRepository(db) {
       if (!atual) return null;
 
       const nome = alteracoes.nome ?? atual.nome;
+      const descricao = alteracoes.descricao ?? atual.descricao;
       const enabled = alteracoes.enabled ?? atual.enabled === 1;
 
-      update.run(nome, enabled ? 1 : 0, deviceId);
+      update.run(nome, descricao, enabled ? 1 : 0, deviceId);
       return formatar(selectUm.get(deviceId));
     },
 
