@@ -3,21 +3,22 @@
 HOST=10.0.0.1:8080
 
 ENDPOINT=$1
-JSON=$2
-METODO=$3
+METODO=$2
+JSON=$3
 
 uso() {
-    echo "USO: ./serverAPI.sh [ENDPOINT] [JSON] [METODO]" >&2
+    echo "USO: ./serverAPI.sh [ENDPOINT] [METODO] [JSON]" >&2
     echo >&2
     exit 1
 }
 
 [[ -z "$ENDPOINT" ]] && ENDPOINT=health
 [[ -z "$METODO" ]] && METODO=GET
+[[ -z "$JSON" ]] && JSON="{}"
 
 URL="http://$HOST/api/$ENDPOINT"
 
-if [ ! -z "$JSON" ]; then
+if [ "$METODO" == "POST" ]; then
     echo "> POST para [$URL]" >&2
     echo "$JSON" | grep -q "\"getFile\":\"" && MODO_DOWNLOAD=1
     if [ "$MODO_DOWNLOAD" == "1" ]; then

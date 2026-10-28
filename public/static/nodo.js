@@ -11,15 +11,17 @@ const estados = {
   new: "NOVO",
   online: "ONLINE",
   offline: "OFFLINE",
+  updating: "ATUALIZANDO",
   recovery: "RECOVERY",
-  unknown: "DESCONHECIDO",
   disabled: "DESABILITADO",
+  unknown: "AGUARDANDO",
 };
 
 let deviceId = null;
 let carregando = false;
 let atualizacaoPendente = false;
 let timerSse = null;
+let verificandoNovoNodo = false;
 
 try {
   deviceId = decodeURIComponent(
@@ -62,9 +64,11 @@ function renderizar(nodo) {
   const snapshot = nodo.snapshot ?? {};
   const estado = nodo.pendente
     ? "new"
-    : nodo.enabled === false
-      ? "disabled"
-      : (nodo.status ?? "unknown");
+    : verificandoNovoNodo
+      ? "updating"
+      : nodo.enabled === false
+        ? "disabled"
+        : (nodo.status ?? "unknown");
   botaoAdicionar.hidden = !nodo.pendente;
   const memoria = snapshot.freeHeap ?? snapshot.free_heap ?? snapshot.heap_free;
   const ultimoErro = nodo.last_error?.detail ?? nodo.last_error?.code;
@@ -107,6 +111,8 @@ function renderizar(nodo) {
     alertas.push(
       "Este dispositivo enviou um snapshot, mas ainda não está cadastrado. Confira as informações antes de adicioná-lo.",
     );
+  } else if (estado === "updating") {
+    alertas.push("Cadastro concluído. Verificando conexão com o dispositivo.");
   } else if (estado !== "online" && nodo.snapshot) {
     alertas.push(
       "O nodo não está online. Os dados do dispositivo são do último snapshot disponível.",
@@ -194,9 +200,35 @@ async function adicionarNodo() {
       throw new Error(erro.detail ?? `HTTP ${resposta.status}`);
     }
 
-    // O overview passará a retornar o nodo já cadastrado.
+    // Cadastro concluído > consultar o dispositivo imediatamente.
+    verificandoNovoNodo = true;
+    botaoAdicionar.hidden = true;
+    const estado = "updating";
+    status.textContent = estados[estado];
+    status.className = `nodo-status nodo-status-${estado}`;
+    mensagem.textContent = `Nodo ${deviceId} cadastrado. Consultando dispositivo...`;
+
+    let erroConsulta = null;
+    try {
+      const consulta = await fetch(
+        `/api/nodes/${encodeURIComponent(deviceId)}/snapshot`,
+        { cache: "no-store" },
+      );
+
+      if (!consulta.ok) {
+        const erro = await consulta.json().catch(() => ({}));
+        erroConsulta = erro.detail ?? `HTTP ${consulta.status}`;
+      }
+    } catch (erro) {
+      erroConsulta = erro.message;
+    } finally {
+      verificandoNovoNodo = false;
+    }
+
     await carregarNodo();
-    mensagem.textContent = `Nodo ${deviceId} cadastrado com sucesso.`;
+    mensagem.textContent = erroConsulta
+      ? `Nodo cadastrado. Consulta inicial falhou: ${erroConsulta}. O monitor continuará verificando.`
+      : `Nodo ${deviceId} cadastrado e consultado com sucesso.`;
   } catch (erro) {
     mensagem.textContent = `Falha ao cadastrar: ${erro.message}`;
     console.error("Cadastro de nodo:", erro);

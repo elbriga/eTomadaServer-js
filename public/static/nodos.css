@@ -77,6 +77,11 @@
   background: #fee2e2;
 }
 
+.nodo-status-updating {
+  color: #b6a248;
+  background: #6167a3;
+}
+
 .nodo-status-recovery {
   color: #7c2d12;
   background: #fdba74;
