@@ -201,6 +201,9 @@ app.get("/nodos", (request, reply) => {
 app.get("/nodos/:device_id", (request, reply) => {
   return reply.sendFile("nodo.html");
 });
+app.get("/regras", (request, reply) => {
+  return reply.sendFile("regras.html");
+});
 // SSE
 const { notificarLog, notificarNodo: publicarNodo } = registrarSse(app);
 notificarNodo = publicarNodo;

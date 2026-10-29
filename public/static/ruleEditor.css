@@ -140,3 +140,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Página geral: reutiliza o formulário sem repetir a tabela. */
+.regra-editor-compacto .regra-cabecalho,
+.regra-editor-compacto .regra-tabela-scroll {
+  display: none;
+}

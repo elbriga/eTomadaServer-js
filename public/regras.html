@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/static/favicon.ico" />
+    <title>Regras - eTomada Server</title>
+
+    <link rel="stylesheet" href="/static/estilo.css" />
+    <link rel="stylesheet" href="/static/ruleEditor.css" />
+    <link rel="stylesheet" href="/static/regras.css" />
+
+    <script src="/static/dom.js" defer></script>
+    <script src="/static/ruleEditor.js" defer></script>
+    <script src="/static/regras.js" defer></script>
+  </head>
+
+  <body>
+    <header>
+      <h1>eTomada Server</h1>
+      <nav>
+        <a href="/">Logs</a>
+        <a href="/historico">Histórico</a>
+        <a href="/nodos">Nodos</a>
+        <a href="/regras" aria-current="page">Regras</a>
+      </nav>
+    </header>
+
+    <main class="regras-pagina">
+      <h2>Regras de automação</h2>
+
+      <section class="regras-painel">
+        <div class="regras-filtros">
+          <label>
+            Escopo
+            <select id="regras-filtro-escopo">
+              <option value="">Todos</option>
+              <option value="GLOBAL">GLOBAL</option>
+              <option value="LOCAL">LOCAL</option>
+            </select>
+          </label>
+
+          <label>
+            Nodo Full
+            <select id="regras-filtro-nodo">
+              <option value="">Todos os nodos</option>
+            </select>
+          </label>
+
+          <label>
+            Estado
+            <select id="regras-filtro-estado">
+              <option value="">Todas</option>
+              <option value="ativa">Ativas</option>
+              <option value="inativa">Inativas</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="regras-acoes">
+          <button id="regras-nova-global" type="button">Nova GLOBAL</button>
+          <button id="regras-nova-local" type="button">Nova LOCAL</button>
+          <button id="regras-atualizar" type="button">Atualizar</button>
+        </div>
+
+        <p id="regras-mensagem" role="status">Carregando regras...</p>
+
+        <div class="regras-tabela-scroll">
+          <table class="regras-tabela">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Escopo</th>
+                <th>Nodo</th>
+                <th>Nome</th>
+                <th>Condição</th>
+                <th>Ação</th>
+                <th>Estado</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="regras-linhas"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="regras-painel-editor" class="regras-painel" hidden>
+        <div class="regras-cabecalho">
+          <h3>Editor de regra</h3>
+          <button id="regras-fechar-editor" type="button">Fechar editor</button>
+        </div>
+        <div id="regras-editor"></div>
+      </section>
+
+      <section class="regras-painel">
+        <h3>Sincronização das regras locais</h3>
+        <p class="regras-nota">
+          Selecione um nodo Full no filtro e clique em Verificar. A comparação
+          consulta o dispositivo naquele momento.
+        </p>
+        <button id="regras-comparar" type="button" disabled>
+          Verificar sincronização
+        </button>
+        <p id="regras-comparacao" role="status">
+          Comparação ainda não realizada.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

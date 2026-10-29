@@ -3,6 +3,8 @@ window.criarEditorRegras = function criarEditorRegras({
   container,
   escopo,
   deviceId = null,
+  modoCompacto = false,
+  onAlterar = null,
 }) {
   if (!container || !["LOCAL", "GLOBAL"].includes(escopo)) {
     throw new Error("Contexto inválido para o editor de regras");
@@ -10,6 +12,8 @@ window.criarEditorRegras = function criarEditorRegras({
   if (escopo === "LOCAL" && !deviceId) {
     throw new Error("Editor LOCAL exige deviceId");
   }
+
+  container.classList.toggle("regra-editor-compacto", modoCompacto);
 
   container.innerHTML = `
     <div class="regra-cabecalho">
@@ -418,7 +422,7 @@ window.criarEditorRegras = function criarEditorRegras({
   }
 
   async function carregar() {
-    if (ocupado) return;
+    if (ocupado) return false;
     ocupado = true;
 
     try {
@@ -440,8 +444,10 @@ window.criarEditorRegras = function criarEditorRegras({
       if (regras.length) {
         mensagem(`${regras.length} regra(s) cadastrada(s).`);
       }
+      return true;
     } catch (erro) {
       mensagem(`Erro ao carregar regras: ${erro.message}`);
+      return false;
     } finally {
       ocupado = false;
     }
@@ -464,6 +470,7 @@ window.criarEditorRegras = function criarEditorRegras({
 
       await carregar();
       mensagem("Operação realizada. Alteração salva no servidor.");
+      onAlterar?.();
     } catch (erro) {
       mensagem(`Erro: ${erro.message}`);
     } finally {
@@ -560,5 +567,22 @@ window.criarEditorRegras = function criarEditorRegras({
     );
   });
 
-  return { carregar };
+  return {
+    carregar,
+
+    abrirNova() {
+      abrir();
+    },
+
+    editarRegra(id) {
+      const regra = regras.find((r) => r.id === Number(id));
+      if (!regra) return false;
+      abrir(regra);
+      return true;
+    },
+
+    temAlteracoes() {
+      return sujo;
+    },
+  };
 };
