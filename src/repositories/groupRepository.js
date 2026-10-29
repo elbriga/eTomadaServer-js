@@ -1,6 +1,6 @@
 export function criarGroupRepository(db) {
   const listarGrupos = db.prepare(`
-    SELECT g.group_id, g.nome, g.descricao,
+    SELECT g.group_id, g.global_id, g.nome, g.descricao,
            g.created_at, g.updated_at,
            COUNT(gr.recurso_id) AS total_recursos
     FROM groups g
@@ -10,7 +10,7 @@ export function criarGroupRepository(db) {
   `);
 
   const buscarGrupo = db.prepare(`
-    SELECT group_id, nome, descricao, created_at, updated_at
+    SELECT group_id, global_id, nome, descricao, created_at, updated_at
     FROM groups WHERE group_id = ?
   `);
 
@@ -27,16 +27,26 @@ export function criarGroupRepository(db) {
     ) COLLATE NOCASE
   `);
 
+  const verificarGlobalId = db.prepare(`
+    SELECT 1 FROM groups
+    WHERE global_id = ? COLLATE NOCASE
+      AND group_id <> ? COLLATE NOCASE
+    LIMIT 1
+  `);
+
   const inserir = db.prepare(`
-    INSERT INTO groups (group_id, nome, descricao)
-    VALUES (?, ?, ?)
+    INSERT INTO groups (group_id, global_id, nome, descricao)
+    VALUES (?, ?, ?, ?)
     ON CONFLICT(group_id) DO NOTHING
   `);
 
   const atualizar = db.prepare(`
     UPDATE groups SET
-      nome = ?, descricao = ?, updated_at = unixepoch()
-    WHERE group_id = ?
+      nome = :nome,
+      descricao = :descricao,
+      global_id = :global_id,
+      updated_at = unixepoch()
+    WHERE group_id = :group_id
   `);
 
   const excluir = db.prepare(`
@@ -80,9 +90,17 @@ export function criarGroupRepository(db) {
 
     buscar,
 
-    criar({ group_id, nome = group_id, descricao = "" }) {
-      const resultado = inserir.run(group_id.toUpperCase(), nome, descricao);
+    globalIdEmUso(globalId, ignorarGroupId = "") {
+      return Boolean(verificarGlobalId.get(globalId, ignorarGroupId));
+    },
 
+    criar({ group_id, global_id = group_id, nome = group_id, descricao = "" }) {
+      const resultado = inserir.run(
+        group_id.toUpperCase(),
+        global_id.toUpperCase(),
+        nome,
+        descricao,
+      );
       return resultado.changes ? buscar(group_id) : null;
     },
 
@@ -90,11 +108,12 @@ export function criarGroupRepository(db) {
       const atual = buscarGrupo.get(groupId);
       if (!atual) return null;
 
-      atualizar.run(
-        alteracoes.nome ?? atual.nome,
-        alteracoes.descricao ?? atual.descricao,
-        atual.group_id,
-      );
+      atualizar.run({
+        group_id: atual.group_id,
+        nome: alteracoes.nome ?? atual.nome,
+        descricao: alteracoes.descricao ?? atual.descricao,
+        global_id: alteracoes.global_id?.toUpperCase() ?? atual.global_id,
+      });
 
       return buscar(atual.group_id);
     },

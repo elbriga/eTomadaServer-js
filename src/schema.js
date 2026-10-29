@@ -3,7 +3,8 @@
 // Versão 7: Novos Nodos
 // Versão 8: Descrição administrativa dos nodos
 // Versão 9: Alertas Telegram por nodo
-export const SCHEMA_VERSION = 9;
+// Versão 10: Identificador global dos grupos
+export const SCHEMA_VERSION = 10;
 
 const COLUNAS = {
   logs: [
@@ -75,7 +76,14 @@ const COLUNAS = {
     "created_at",
     "finished_at",
   ],
-  groups: ["group_id", "nome", "descricao", "created_at", "updated_at"],
+  groups: [
+    "group_id",
+    "global_id",
+    "nome",
+    "descricao",
+    "created_at",
+    "updated_at",
+  ],
   group_resources: ["group_id", "device_id", "recurso_id"],
   rules: [
     "id",
@@ -113,6 +121,7 @@ const INDICES = {
   idx_events_recurso: ["device_id", "recurso_id"],
   idx_events_timestamp: ["timestamp"],
   idx_resources_global_id: ["global_id"],
+  idx_groups_global_id: ["global_id"],
   idx_resource_commands_resource: ["device_id", "recurso_id", "id"],
   idx_group_resources_resource: ["device_id", "recurso_id"],
   idx_rules_escopo_nodo: ["escopo", "device_id"],
@@ -344,6 +353,18 @@ const migracoes = {
       ALTER TABLE nodes
         ADD COLUMN telegram_alert INTEGER NOT NULL DEFAULT 0
         CHECK (telegram_alert IN (0, 1));
+    `);
+  },
+
+  10(db) {
+    // Identificador lógico dos grupos > preservar group_id e associações.
+    db.exec(`
+      ALTER TABLE groups ADD COLUMN global_id TEXT;
+
+      UPDATE groups SET global_id = group_id;
+
+      CREATE UNIQUE INDEX idx_groups_global_id
+        ON groups(global_id COLLATE NOCASE);
     `);
   },
 };

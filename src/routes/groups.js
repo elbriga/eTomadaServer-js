@@ -112,6 +112,7 @@ export default async function groupsRoutes(
           additionalProperties: false,
           properties: {
             group_id: groupIdSchema,
+            global_id: groupIdSchema,
             nome: nomeSchema,
             descricao: descricaoSchema,
           },
@@ -119,7 +120,7 @@ export default async function groupsRoutes(
       },
     },
     (request, reply) => {
-      const { group_id, nome, descricao } = request.body;
+      const { group_id, global_id, nome, descricao } = request.body;
 
       if (nome !== undefined && !nome.trim()) {
         return reply.code(400).send({
@@ -127,8 +128,17 @@ export default async function groupsRoutes(
         });
       }
 
+      const idGlobal = (global_id ?? group_id).toUpperCase();
+
+      if (groups.globalIdEmUso(idGlobal)) {
+        return reply.code(409).send({
+          detail: "global_id já utilizado por outro grupo",
+        });
+      }
+
       const grupo = groups.criar({
         group_id,
+        global_id: idGlobal,
         nome: nome?.trim() ?? group_id.toUpperCase(),
         descricao: descricao?.trim() ?? "",
       });
@@ -172,6 +182,7 @@ export default async function groupsRoutes(
           properties: {
             nome: nomeSchema,
             descricao: descricaoSchema,
+            global_id: groupIdSchema,
           },
         },
       },
@@ -191,6 +202,18 @@ export default async function groupsRoutes(
 
       if (alteracoes.descricao !== undefined) {
         alteracoes.descricao = alteracoes.descricao.trim();
+      }
+
+      if (alteracoes.global_id !== undefined) {
+        alteracoes.global_id = alteracoes.global_id.toUpperCase();
+
+        if (
+          groups.globalIdEmUso(alteracoes.global_id, request.params.group_id)
+        ) {
+          return reply.code(409).send({
+            detail: "global_id já utilizado por outro grupo",
+          });
+        }
       }
 
       return (

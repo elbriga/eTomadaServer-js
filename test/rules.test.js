@@ -73,7 +73,7 @@ const localBody = {
   },
 };
 
-test("schema atual e migração 4→9", () => {
+test("schema atual e migração 4→10", () => {
   const db = prepararBanco();
 
   try {
@@ -87,6 +87,8 @@ test("schema atual e migração 4→9", () => {
       DROP TABLE nodes_pending;
       DROP TABLE node_recovery;
       DROP TABLE rules;
+      DROP INDEX idx_groups_global_id;
+      ALTER TABLE groups DROP COLUMN global_id;
       ALTER TABLE nodes DROP COLUMN descricao;
       ALTER TABLE nodes DROP COLUMN telegram_alert;
       PRAGMA user_version = 4;

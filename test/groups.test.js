@@ -194,6 +194,34 @@ test("API HTTP de grupos e associações", async () => {
 
     assert.equal(duplicado.statusCode, 409);
 
+    const editar = await app.inject({
+      method: "PATCH",
+      url: "/api/groups/ILUMINACAO",
+      payload: { global_id: "LUZES_PRINCIPAIS" },
+    });
+
+    assert.equal(editar.statusCode, 200);
+    assert.equal(editar.json().global_id, "LUZES_PRINCIPAIS");
+
+    const conflito = await app.inject({
+      method: "POST",
+      url: "/api/groups",
+      payload: {
+        group_id: "OUTRO_GRUPO",
+        global_id: "luzes_principais",
+      },
+    });
+
+    assert.equal(conflito.statusCode, 409);
+
+    const invalido = await app.inject({
+      method: "PATCH",
+      url: "/api/groups/ILUMINACAO",
+      payload: { global_id: "nome inválido" },
+    });
+
+    assert.equal(invalido.statusCode, 400);
+
     const associar = await app.inject({
       method: "PUT",
       url: "/api/groups/ILUMINACAO/resources/LUZ_GROW",
@@ -239,6 +267,75 @@ test("API HTTP de grupos e associações", async () => {
     assert.equal(excluir.statusCode, 204);
   } finally {
     await app.close();
+    db.close();
+  }
+});
+
+test("global_id dos grupos: valor padrão, edição e unicidade", () => {
+  const { db, groups } = preparar();
+
+  try {
+    const primeiro = groups.criar({ group_id: "PRIMEIRO_ANDAR" });
+    assert.equal(primeiro.global_id, "PRIMEIRO_ANDAR");
+
+    const segundo = groups.criar({
+      group_id: "ILUMINACAO",
+      global_id: "LUZES_GERAIS",
+    });
+    assert.equal(segundo.global_id, "LUZES_GERAIS");
+
+    assert.equal(groups.globalIdEmUso("luzes_gerais"), true);
+    assert.equal(groups.globalIdEmUso("LUZES_GERAIS", "ILUMINACAO"), false);
+
+    assert.throws(() =>
+      groups.criar({
+        group_id: "OUTRO",
+        global_id: "luzes_gerais",
+      }),
+    );
+
+    groups.adicionarRecurso("ILUMINACAO", "LUZ_GROW");
+
+    const atualizado = groups.atualizar("ILUMINACAO", {
+      global_id: "LUZES_PRINCIPAIS",
+    });
+
+    assert.equal(atualizado.global_id, "LUZES_PRINCIPAIS");
+    assert.equal(atualizado.recursos.length, 1);
+    assert.equal(atualizado.recursos[0].global_id, "LUZ_GROW");
+
+    assert.equal(groups.globalIdEmUso("LUZES_GERAIS"), false);
+  } finally {
+    db.close();
+  }
+});
+
+test("migração v9 para v10 preserva associações", () => {
+  const { db, groups } = preparar();
+
+  try {
+    groups.criar({ group_id: "ILUMINACAO" });
+    groups.adicionarRecurso("ILUMINACAO", "LUZ_GROW");
+
+    // Simula banco na versão anterior.
+    db.exec(`
+      DROP INDEX idx_groups_global_id;
+      ALTER TABLE groups DROP COLUMN global_id;
+      PRAGMA user_version = 9;
+    `);
+
+    inicializarSchema(db);
+
+    const migrado = criarGroupRepository(db).buscar("ILUMINACAO");
+    assert.equal(migrado.global_id, "ILUMINACAO");
+    assert.equal(migrado.recursos.length, 1);
+
+    inicializarSchema(db);
+    assert.equal(
+      db.prepare("PRAGMA user_version").get().user_version,
+      SCHEMA_VERSION,
+    );
+  } finally {
     db.close();
   }
 });
