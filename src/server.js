@@ -190,7 +190,10 @@ await app.register(fastifyStatic, {
   prefix: "/",
 });
 app.get("/", (request, reply) => {
-  return reply.sendFile("index.html");
+  return reply.sendFile("home.html");
+});
+app.get("/logs", (request, reply) => {
+  return reply.sendFile("logs.html");
 });
 app.get("/historico", (request, reply) => {
   return reply.sendFile("historico.html");
