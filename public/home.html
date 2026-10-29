@@ -6,10 +6,12 @@
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
     <title>HOME - eTomada Server</title>
     <link rel="stylesheet" href="/static/estilo.css" />
+    <link rel="stylesheet" href="/static/home.css" />
     <script src="/static/dom.js" defer></script>
+    <script src="/static/home.js" defer></script>
   </head>
 
-  <body>
+  <body class="home-page">
     <header>
       <h1>eTomada Server</h1>
       <nav>
@@ -20,5 +22,95 @@
         <a href="/regras">Regras</a>
       </nav>
     </header>
+
+    <main class="home-main">
+      <div class="home-topo">
+        <div>
+          <p class="home-sobretitulo">AUTOMAÇÃO RESIDENCIAL</p>
+          <h2>Minha casa</h2>
+          <p id="home-total">Carregando grupos...</p>
+        </div>
+        <div class="home-acoes">
+          <button id="home-refresh" class="home-secundario" type="button">
+            Atualizar
+          </button>
+          <button id="home-new" type="button">+ Novo grupo</button>
+        </div>
+      </div>
+
+      <p id="home-status" class="home-status" role="status">Carregando...</p>
+
+      <section id="home-overview" aria-label="Grupos">
+        <div id="home-cards" class="home-cards"></div>
+      </section>
+
+      <section id="home-detail" hidden>
+        <div class="home-detalhe-topo">
+          <button id="home-back" class="home-secundario" type="button">
+            ← Grupos
+          </button>
+          <button id="home-config" class="home-secundario" type="button">
+            ⚙ Configurar
+          </button>
+        </div>
+        <h2 id="home-detail-name"></h2>
+        <p id="home-detail-id" class="home-mono"></p>
+        <p id="home-detail-desc"></p>
+        <h3 id="home-detail-count"></h3>
+        <div id="home-resources" class="home-recursos"></div>
+      </section>
+    </main>
+
+    <dialog
+      id="home-dialog"
+      class="home-dialog"
+      aria-labelledby="home-editor-title"
+    >
+      <form id="home-form">
+        <h2 id="home-editor-title">Configurar grupo</h2>
+
+        <label for="home-group-id">ID interno (não editável após criar)</label>
+        <input
+          id="home-group-id"
+          required
+          maxlength="64"
+          pattern="[A-Za-z][A-Za-z0-9_]*"
+        />
+
+        <label for="home-global-id">Global ID</label>
+        <input
+          id="home-global-id"
+          required
+          maxlength="64"
+          pattern="[A-Za-z][A-Za-z0-9_]*"
+        />
+
+        <label for="home-name">Nome</label>
+        <input id="home-name" required maxlength="100" />
+
+        <label for="home-desc">Descrição</label>
+        <textarea id="home-desc" maxlength="500" rows="3"></textarea>
+
+        <fieldset>
+          <legend>Recursos associados</legend>
+          <p class="home-ajuda">
+            O mesmo recurso pode pertencer a vários grupos.
+          </p>
+          <div id="home-members" class="home-members"></div>
+        </fieldset>
+
+        <p id="home-form-status" role="status"></p>
+
+        <div class="home-form-acoes">
+          <button id="home-delete" class="home-perigo" type="button" hidden>
+            Excluir
+          </button>
+          <button id="home-cancel" class="home-secundario" type="button">
+            Cancelar
+          </button>
+          <button id="home-save" type="submit">Salvar</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

@@ -1,0 +1,407 @@
+/* Tema exclusivo da HOME */
+.home-page {
+  background: #0b1220;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+.home-page [hidden] {
+  display: none !important;
+}
+
+.home-page header {
+  background: #101b2d;
+  border-bottom: 1px solid #26354b;
+}
+
+.home-page header nav {
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.home-page header a {
+  color: #9cb1cf;
+}
+
+.home-page header a[aria-current] {
+  color: #fff;
+}
+
+.home-main {
+  max-width: 1360px;
+  padding: 30px 24px 64px;
+  margin: auto;
+}
+
+.home-topo,
+.home-detalhe-topo,
+.home-acoes,
+.home-form-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-topo {
+  flex-wrap: wrap;
+}
+
+.home-topo h2,
+#home-detail h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(25px, 3vw, 34px);
+}
+
+.home-topo p,
+#home-detail p {
+  margin: 4px 0;
+  color: #9aabc4;
+}
+
+.home-sobretitulo {
+  letter-spacing: 0.15em;
+  font-size: 11px;
+  font-weight: 700;
+  color: #93c5fd !important;
+}
+
+.home-page button {
+  border: 1px solid #2563eb;
+  border-radius: 9px;
+  background: #2563eb;
+  color: white;
+  font-weight: 600;
+}
+
+.home-page button:hover {
+  background: #1d4ed8;
+}
+
+.home-page button:focus-visible,
+.home-page input:focus-visible,
+.home-page textarea:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
+}
+
+.home-page button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.home-page .home-secundario {
+  background: #1c2b40;
+  border-color: #364963;
+}
+
+.home-page .home-secundario:hover {
+  background: #263953;
+}
+
+.home-page .home-perigo {
+  background: #7f1d1d;
+  border-color: #991b1b;
+}
+
+.home-page .home-perigo:hover {
+  background: #991b1b;
+}
+
+.home-status {
+  color: #94a3b8;
+  font-size: 12px;
+  min-height: 1.5em;
+  margin: 16px 0 24px;
+}
+
+/* Cards dos grupos */
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: 17px;
+}
+
+.home-card {
+  background: #172438;
+  border: 1px solid #2e4057;
+  border-radius: 16px;
+  position: relative;
+  min-height: 190px;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+
+.home-card:hover {
+  border-color: #4b76af;
+  transform: translateY(-2px);
+}
+
+.home-page .home-card-abrir {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 9px;
+  width: 100%;
+  height: 100%;
+  min-height: 190px;
+  padding: 22px;
+  background: transparent;
+  border: 0;
+  color: #e2e8f0;
+  text-align: left;
+}
+
+.home-page .home-card-abrir:hover {
+  background: transparent;
+}
+
+.home-card-icone {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.home-card-nome {
+  font-size: 20px;
+  padding-right: 20px;
+}
+
+.home-card-id,
+.home-mono {
+  color: #92a6c3;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.home-card-count,
+.home-card-status {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.home-alerta {
+  color: #fdba74;
+  font-size: 12px;
+}
+
+.home-page .home-card-editar {
+  position: absolute;
+  top: 15px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: #243750;
+  border-color: #38516d;
+}
+
+.home-page .home-card-editar:hover {
+  background: #344963;
+}
+
+.home-vazio {
+  grid-column: 1 / -1;
+  color: #94a3b8;
+  padding: 22px;
+  border: 1px dashed #3a4b63;
+  border-radius: 12px;
+}
+
+/* Detalhes e recursos */
+.home-detalhe-topo {
+  margin-bottom: 24px;
+}
+
+#home-detail h3 {
+  margin: 28px 0 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.home-recursos {
+  display: grid;
+  gap: 10px;
+}
+
+.home-recurso {
+  background: #172438;
+  border: 1px solid #2e4057;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 18px;
+}
+
+.home-recurso-icone {
+  font-size: 23px;
+}
+
+.home-recurso-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.home-recurso-info small {
+  color: #94a3b8;
+  overflow-wrap: anywhere;
+}
+
+.home-recurso-estado {
+  color: #b9d7fb;
+  font-size: 13px;
+  text-align: right;
+}
+
+.home-recurso-estado.home-indisponivel {
+  color: #fdba74;
+}
+
+/* Editor de grupos */
+.home-page .home-dialog {
+  background: #142137;
+  color: #e2e8f0;
+  border: 1px solid #3a4f6e;
+  border-radius: 15px;
+  width: min(600px, calc(100vw - 26px));
+  max-height: min(90vh, 850px);
+  padding: 24px;
+}
+
+.home-dialog::backdrop {
+  background: #020617b8;
+}
+
+.home-dialog form {
+  display: grid;
+  gap: 9px;
+}
+
+.home-dialog h2 {
+  margin: 0 0 12px;
+}
+
+.home-dialog label {
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.home-page .home-dialog input:not([type="checkbox"]),
+.home-page .home-dialog textarea {
+  background: #0f1a2c;
+  color: #f8fafc;
+  border: 1px solid #3c506b;
+  border-radius: 8px;
+  width: 100%;
+  padding: 9px;
+  font: inherit;
+}
+
+.home-page .home-dialog input[readonly] {
+  opacity: 0.65;
+}
+
+.home-dialog fieldset {
+  border: 1px solid #3a4d67;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.home-dialog legend {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.home-ajuda {
+  color: #94a3b8;
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+
+.home-members {
+  display: grid;
+  gap: 8px;
+  max-height: 215px;
+  overflow-y: auto;
+}
+
+.home-dialog .home-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1c2e46;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.home-member input {
+  margin: 0;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.home-member span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.home-member small {
+  color: #94a3b8;
+  overflow-wrap: anywhere;
+}
+
+#home-form-status {
+  color: #fdba74;
+  font-size: 12px;
+  min-height: 1em;
+}
+
+.home-form-acoes {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.home-form-acoes .home-perigo {
+  margin-right: auto;
+}
+
+/* Responsividade */
+@media (max-width: 650px) {
+  .home-main {
+    padding: 22px 14px 50px;
+  }
+
+  .home-topo,
+  .home-acoes {
+    align-items: stretch;
+  }
+
+  .home-acoes {
+    width: 100%;
+  }
+
+  .home-acoes button {
+    flex: 1;
+  }
+
+  .home-recurso {
+    flex-wrap: wrap;
+  }
+
+  .home-recurso-estado {
+    width: 100%;
+    text-align: left;
+    padding-left: 38px;
+  }
+}
