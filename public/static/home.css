@@ -393,6 +393,118 @@
   margin-right: auto;
 }
 
+/* Controles de acionamento */
+.home-command-status {
+  color: #86efac;
+  font-size: 13px;
+  padding: 10px 14px;
+  background: #123b31;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.home-command-status:empty {
+  display: none;
+}
+
+.home-command-status.erro {
+  background: #482326;
+  color: #fca5a5;
+}
+
+.home-page .home-card-abrir {
+  height: auto;
+  min-height: 160px;
+  padding-bottom: 8px;
+}
+
+.home-card-controle {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 20px 20px;
+}
+
+.home-group-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.home-page button.home-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex: none;
+  padding: 8px 12px;
+  min-height: 38px;
+  border-radius: 24px;
+  border: 1px solid #475569;
+  background: #243449;
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.home-page button.home-toggle:hover:not(:disabled) {
+  background: #34465e;
+}
+
+.home-page button.home-toggle.ligado {
+  background: #123b31;
+  border-color: #238466;
+  color: #86efac;
+}
+
+.home-page button.home-toggle.misto {
+  background: #40321e;
+  border-color: #a67b2a;
+  color: #fcd34d;
+}
+
+.home-toggle-trilho {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border-radius: 12px;
+  background: #64748b;
+}
+
+.home-toggle-trilho::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+
+.home-toggle.ligado .home-toggle-trilho {
+  background: #16a34a;
+}
+
+.home-toggle.ligado .home-toggle-trilho::after {
+  transform: translateX(16px);
+}
+
+.home-toggle.misto .home-toggle-trilho {
+  background: #b45309;
+}
+
+.home-page button.home-toggle:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 /* Responsividade */
 @media (max-width: 650px) {
   .home-main {

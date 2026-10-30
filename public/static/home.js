@@ -19,6 +19,41 @@
   let temporizador = null;
   let globalIdEditado = false;
 
+  const recursosOcupados = new Set();
+  const gruposOcupados = new Set();
+
+  function chaveRecurso(r) {
+    return `${r.device_id.toUpperCase()}/${r.recurso_id}`;
+  }
+
+  function relesDoGrupo(grupo) {
+    return (grupo.recursos ?? []).filter(
+      (r) => tipoRecurso(r) === "RELE" && r.global_id,
+    );
+  }
+
+  function recursoOcupado(r) {
+    return recursosOcupados.has(chaveRecurso(r));
+  }
+
+  function grupoOcupado(grupo) {
+    return (
+      gruposOcupados.has(grupo.group_id) ||
+      relesDoGrupo(grupo).some(recursoOcupado)
+    );
+  }
+
+  function mensagemComando(texto, erro = false) {
+    const area = $("home-command-status");
+    area.textContent = texto;
+    area.classList.toggle("erro", erro);
+  }
+
+  function atualizarControles() {
+    renderizarCards();
+    renderizarDetalhe();
+  }
+
   async function api(url, options = {}) {
     const resposta = await fetch(url, {
       cache: "no-store",
@@ -92,36 +127,236 @@
     );
   }
 
-  // Resumo visual > somente relés disponíveis nesta etapa.
+  // Estado coletivo > considerar somente relés com global_id
   function resumo(grupo) {
     const recursos = grupo.recursos ?? [];
+    const reles = relesDoGrupo(grupo);
     const offline = recursos.filter(estaOffline).length;
-
-    const reles = recursos.filter(
-      (r) => tipoRecurso(r) === "RELE" && !estaOffline(r),
-    );
 
     if (!reles.length) {
       return {
-        texto: "Sem relés disponíveis",
+        texto: "Sem relés",
+        estado: "empty",
         offline,
+        total: 0,
       };
     }
 
-    const estados = reles.map(estadoRele);
+    const estados = reles.map((r) =>
+      estaOffline(r) ? "Desconhecido" : estadoRele(r),
+    );
+
     const ligados = estados.filter((e) => e === "Ligado").length;
     const desligados = estados.filter((e) => e === "Desligado").length;
 
-    const texto =
-      ligados + desligados !== estados.length
-        ? "Relés: estado parcial"
-        : ligados === estados.length
-          ? "Relés: ligados"
-          : desligados === estados.length
-            ? "Relés: desligados"
-            : "Relés: mistos";
+    let estado;
+    let texto;
 
-    return { texto, offline };
+    if (ligados === reles.length) {
+      estado = "on";
+      texto = "Relés: ligados";
+    } else if (desligados === reles.length) {
+      estado = "off";
+      texto = "Relés: desligados";
+    } else if (ligados && desligados) {
+      estado = "mixed";
+      texto = "Relés: mistos";
+    } else {
+      estado = "unknown";
+      texto = "Relés: estado parcial/desconhecido";
+    }
+
+    return { estado, texto, offline, total: reles.length };
+  }
+
+  function criarToggleRele(recurso) {
+    const estado = estadoRele(recurso);
+    const ocupado = recursoOcupado(recurso);
+    const ligado = estado === "Ligado";
+
+    const comando = ligado ? "OFF" : "ON";
+    const botao = elemento("button", "home-toggle");
+    botao.type = "button";
+    botao.disabled = ocupado;
+
+    botao.classList.toggle("ligado", ligado);
+
+    if (estado !== "Desconhecido")
+      botao.setAttribute("aria-pressed", String(ligado));
+
+    botao.setAttribute(
+      "aria-label",
+      `${comando === "ON" ? "Ligar" : "Desligar"} ${nomeRecurso(recurso)}`,
+    );
+
+    botao.append(
+      elemento("span", "home-toggle-trilho"),
+      elemento(
+        "span",
+        null,
+        ocupado
+          ? "..."
+          : estado === "Desconhecido"
+            ? "?"
+            : comando === "OFF"
+              ? "ON"
+              : "OFF",
+      ),
+    );
+
+    botao.addEventListener("click", () => {
+      void comandarRele(recurso, comando);
+    });
+
+    return botao;
+  }
+
+  function criarToggleGrupo(grupo) {
+    const info = resumo(grupo);
+    const ocupado = grupoOcupado(grupo);
+    const comando = info.estado === "on" ? "OFF" : "ON";
+
+    const botao = elemento("button", "home-toggle home-toggle-grupo");
+    botao.type = "button";
+    botao.disabled = ocupado || info.estado === "empty";
+
+    botao.classList.toggle("ligado", info.estado === "on");
+    botao.classList.toggle(
+      "misto",
+      info.estado === "mixed" || info.estado === "unknown",
+    );
+
+    if (info.estado === "on" || info.estado === "off")
+      botao.setAttribute("aria-pressed", String(info.estado === "on"));
+    else if (info.estado === "mixed")
+      botao.setAttribute("aria-pressed", "mixed");
+
+    const acao = comando === "ON" ? "Ligar todos" : "Desligar todos";
+
+    botao.setAttribute("aria-label", `${acao}: ${grupo.nome}`);
+
+    botao.append(
+      elemento("span", "home-toggle-trilho"),
+      elemento("span", null, ocupado ? "Enviando..." : acao),
+    );
+
+    botao.addEventListener("click", () => {
+      void comandarGrupo(grupo.group_id, comando);
+    });
+
+    return botao;
+  }
+
+  // Comando individual > aguardar resposta antes de atualizar o estado.
+  async function comandarRele(recurso, comando) {
+    const chave = chaveRecurso(recurso);
+
+    if (!recurso.global_id || recursoOcupado(recurso)) return;
+
+    recursosOcupados.add(chave);
+    mensagemComando(`Enviando ${comando} para ${nomeRecurso(recurso)}...`);
+    atualizarControles();
+
+    let mensagem;
+    let erro = false;
+
+    try {
+      const resposta = await api(
+        `/api/resources/${encodeURIComponent(recurso.global_id)}/commands`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: comando }),
+        },
+      );
+
+      if (resposta?.confirmed !== true)
+        throw new Error("Comando não confirmado");
+
+      mensagem = `${nomeRecurso(recurso)}: ${comando} confirmado`;
+    } catch (e) {
+      erro = true;
+      mensagem = `${nomeRecurso(recurso)}: ${e.message}`;
+    } finally {
+      // Recarregar o estado persistido, sem confirmação otimista.
+      await carregar();
+
+      recursosOcupados.delete(chave);
+      atualizarControles();
+      mensagemComando(mensagem, erro);
+    }
+  }
+
+  // Comando coletivo > uma chamada HTTP ao servidor por grupo.
+  async function comandarGrupo(groupId, comando) {
+    const grupo = grupoPorId(groupId);
+    if (!grupo || grupoOcupado(grupo)) return;
+
+    const reles = relesDoGrupo(grupo);
+    if (!reles.length) return;
+
+    gruposOcupados.add(groupId);
+    for (const recurso of reles) recursosOcupados.add(chaveRecurso(recurso));
+
+    mensagemComando(`Enviando ${comando} para ${grupo.nome}...`);
+    atualizarControles();
+
+    let mensagem;
+    let erro = false;
+
+    try {
+      const resposta = await api(
+        `/api/groups/${encodeURIComponent(groupId)}/commands`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: comando }),
+        },
+      );
+
+      const summary = resposta?.summary;
+      const falhas = (resposta?.results ?? []).filter(
+        (r) => r.status !== "confirmed" && r.status !== "skipped",
+      );
+
+      if (!summary || summary.attempted === 0) {
+        erro = true;
+        mensagem = `${grupo.nome}: nenhum relé acionado`;
+      } else if (
+        resposta.ok !== true ||
+        summary.confirmed !== summary.attempted
+      ) {
+        erro = true;
+
+        const primeira = falhas[0];
+        const detalhe = primeira
+          ? ` — ${primeira.global_id ?? primeira.recurso_id}: ${
+              primeira.detail ?? primeira.code ?? primeira.status
+            }`
+          : "";
+
+        mensagem =
+          `${grupo.nome}: ${summary.confirmed}/${summary.attempted}` +
+          ` confirmados${detalhe}`;
+      } else {
+        mensagem =
+          `${grupo.nome}: ${summary.confirmed} relé(s)` +
+          ` confirmados em ${comando}`;
+      }
+    } catch (e) {
+      erro = true;
+      mensagem = `${grupo.nome}: ${e.message}`;
+    } finally {
+      await carregar();
+
+      for (const recurso of reles)
+        recursosOcupados.delete(chaveRecurso(recurso));
+
+      gruposOcupados.delete(groupId);
+
+      atualizarControles();
+      mensagemComando(mensagem, erro);
+    }
   }
 
   function renderizarCards() {
@@ -182,7 +417,10 @@
         void abrirEditor(grupo.group_id);
       });
 
-      card.append(abrir, editar);
+      const controle = elemento("div", "home-card-controle");
+      controle.append(criarToggleGrupo(grupo));
+
+      card.append(abrir, editar, controle);
       gruposContainer.append(card);
     }
   }
@@ -199,6 +437,19 @@
     $("home-detail-id").textContent = grupo.global_id ?? grupo.group_id;
     $("home-detail-desc").textContent = grupo.descricao || "Sem descrição";
     $("home-detail-count").textContent = `${grupo.recursos.length} recurso(s)`;
+
+    const controles = $("home-group-controls");
+
+    const desligar = elemento("button", "home-secundario", "Desligar todos");
+
+    desligar.type = "button";
+    desligar.disabled = resumo(grupo).estado === "empty" || grupoOcupado(grupo);
+
+    desligar.addEventListener("click", () => {
+      void comandarGrupo(grupo.group_id, "OFF");
+    });
+
+    controles.replaceChildren(criarToggleGrupo(grupo), desligar);
 
     recursosContainer.replaceChildren();
 
@@ -255,6 +506,11 @@
       }
 
       linha.append(icone, texto, estado);
+
+      if (tipo === "RELE" && recurso.global_id) {
+        linha.append(criarToggleRele(recurso));
+      }
+
       recursosContainer.append(linha);
     }
   }
