@@ -419,10 +419,13 @@ test("lote por nodo mantém histórico e falha parcial", async () => {
       )
       .all();
 
-    assert.deepEqual(registros, [
-      { recurso_id: "R1", command: "OFF", status: "confirmed" },
-      { recurso_id: "R2", command: "OFF", status: "uncertain" },
-    ]);
+    assert.deepEqual(
+      registros.map((r) => ({ ...r })),
+      [
+        { recurso_id: "R1", command: "OFF", status: "confirmed" },
+        { recurso_id: "R2", command: "OFF", status: "uncertain" },
+      ],
+    );
   } finally {
     await c.fechar();
   }
