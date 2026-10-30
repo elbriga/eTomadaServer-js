@@ -260,7 +260,7 @@ export async function enviarComandosLote({
       body: JSON.stringify({ recursos }),
     };
   } else if (api === "Lite") {
-    const estados = recursos.map((r) => `${r.id}:${r.estado}`).join("-");
+    const estados = recursos.map((r) => `${r.id}_${r.estado}`).join("-");
 
     const params = new URLSearchParams({ estados });
     url = `${baseUrl}/api/setReles?${params}`;

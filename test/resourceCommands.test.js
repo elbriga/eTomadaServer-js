@@ -365,6 +365,6 @@ test("Lite envia comandos agrupados em uma string GET", async () => {
   assert.equal(chamadas[0].options.method, "GET");
   assert.equal(
     chamadas[0].url,
-    "http://dev.etomada/api/setReles?estados=R1%3AON-R2%3AOFF",
+    "http://dev.etomada/api/setReles?estados=R1_ON-R2_OFF",
   );
 });
