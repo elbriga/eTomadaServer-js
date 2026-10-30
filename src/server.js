@@ -33,12 +33,8 @@ if (!["dev", "prod"].includes(env)) throw new Error("ETOMADA_ENV inválido");
 if (!Number.isInteger(port) || port < 1 || port > 65535)
   throw new Error("PORT inválida");
 
-// DEV físico > exige um nodo explicitamente autorizado.
 const nodoDev = process.env.DEV_COMMAND_NODE?.trim().toUpperCase() || null;
 const habilitarFisicos = process.env.ENABLE_PHYSICAL_COMMANDS === "true";
-
-if (env === "dev" && habilitarFisicos && !nodoDev)
-  throw new Error("DEV_COMMAND_NODE obrigatório para comandos em DEV");
 
 const logsServidor = criarServerLogStream();
 
@@ -91,7 +87,6 @@ const comandos = criarResourceService({
     // Comando físico confirmado > cancelar OFF antigo.
     ruleEngine?.cancelarTimerFisico(device_id, recurso_id);
   },
-  nodoPermitido: env === "dev" ? nodoDev : null,
 });
 
 // Motor global > único modo para eventos, horários e boot.

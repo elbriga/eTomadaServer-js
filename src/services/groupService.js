@@ -18,7 +18,7 @@ export function criarGroupService({
     throw new TypeError("Concorrência inválida");
   }
 
-  if (permitirComandos && typeof comandos?.executar !== "function") {
+  if (permitirComandos && typeof comandos?.executarLote !== "function") {
     throw new TypeError("ResourceService não configurado");
   }
 
@@ -45,67 +45,96 @@ export function criarGroupService({
       );
     }
 
-    const membros = grupo.recursos;
-    const results = new Array(membros.length);
+    const porNodo = new Map();
+
+    // Agrupar recursos acionáveis pelo nodo físico.
+    for (const [indice, recurso] of membros.entries()) {
+      if (recurso.tipo !== "RELE" || !recurso.global_id) {
+        results[indice] = {
+          global_id: recurso.global_id,
+          device_id: recurso.device_id,
+          recurso_id: recurso.recurso_id,
+          status: "skipped",
+          reason:
+            recurso.tipo !== "RELE"
+              ? "UNSUPPORTED_RESOURCE"
+              : "MISSING_GLOBAL_ID",
+        };
+        continue;
+      }
+
+      const chave = recurso.device_id.toUpperCase();
+      if (!porNodo.has(chave)) porNodo.set(chave, []);
+      porNodo.get(chave).push({ indice, recurso });
+    }
+
+    const lotes = [...porNodo.values()];
     let proximo = 0;
 
     async function trabalhador() {
       while (true) {
-        const indice = proximo++;
-        if (indice >= membros.length) return;
+        const posicao = proximo++;
+        if (posicao >= lotes.length) return;
 
-        const recurso = membros[indice];
-        const identificacao = {
-          global_id: recurso.global_id,
-          device_id: recurso.device_id,
-          recurso_id: recurso.recurso_id,
-        };
-
-        if (recurso.tipo !== "RELE" || !recurso.global_id) {
-          results[indice] = {
-            ...identificacao,
-            status: "skipped",
-            reason:
-              recurso.tipo !== "RELE"
-                ? "UNSUPPORTED_RESOURCE"
-                : "MISSING_GLOBAL_ID",
-          };
-          continue;
-        }
+        const lote = lotes[posicao];
+        let respostas;
 
         try {
-          const resposta = await comandos.executar(recurso.global_id, command, {
+          respostas = await comandos.executarLote(
+            lote.map((item) => item.recurso),
+            command,
+          );
+        } catch (erro) {
+          respostas = lote.map(() => ({
+            status: "rejected",
+            reason: erro,
+          }));
+        }
+
+        for (const [i, item] of lote.entries()) {
+          const { indice, recurso } = item;
+          const identificacao = {
+            global_id: recurso.global_id,
             device_id: recurso.device_id,
             recurso_id: recurso.recurso_id,
-          });
-
-          results[indice] = {
-            ...identificacao,
-            status: "confirmed",
-            command_id: resposta.command_id,
-            estado: resposta.estado,
-            duracao_ms: resposta.duracao_ms,
           };
-        } catch (erro) {
-          const status = ["uncertain", "mismatch"].includes(
-            erro.execution_status,
-          )
-            ? erro.execution_status
-            : "failed";
 
-          results[indice] = {
-            ...identificacao,
-            status,
-            command_id: erro.command_id ?? null,
-            code: erro.code ?? "COMMAND_ERROR",
-            detail: erro.message,
+          const resultado = respostas[i] ?? {
+            status: "rejected",
+            reason: new Error("Resultado do lote ausente"),
           };
+
+          if (resultado.status === "fulfilled") {
+            const resposta = resultado.value;
+            results[indice] = {
+              ...identificacao,
+              status: "confirmed",
+              command_id: resposta.command_id,
+              estado: resposta.estado,
+              duracao_ms: resposta.duracao_ms,
+            };
+          } else {
+            const erro = resultado.reason;
+            const status = ["uncertain", "mismatch"].includes(
+              erro.execution_status,
+            )
+              ? erro.execution_status
+              : "failed";
+
+            results[indice] = {
+              ...identificacao,
+              status,
+              command_id: erro.command_id ?? null,
+              code: erro.code ?? "COMMAND_ERROR",
+              detail: erro.message,
+            };
+          }
         }
       }
     }
 
     await Promise.all(
-      Array.from({ length: Math.min(concorrencia, membros.length) }, () =>
+      Array.from({ length: Math.min(concorrencia, lotes.length) }, () =>
         trabalhador(),
       ),
     );

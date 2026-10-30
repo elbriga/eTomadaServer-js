@@ -6,7 +6,10 @@ import Fastify from "fastify";
 import { inicializarSchema } from "../src/schema.js";
 import { criarNodeRepository } from "../src/repositories/nodeRepository.js";
 import { criarResourceRepository } from "../src/repositories/resourceRepository.js";
-import { enviarComandoRele } from "../src/devices/nodeClient.js";
+import {
+  enviarComandoRele,
+  enviarComandosLote,
+} from "../src/devices/nodeClient.js";
 import resourcesRoutes from "../src/routes/resources.js";
 
 function respostaRele(id, estado) {
@@ -307,4 +310,61 @@ test("dois comandos simultâneos ao mesmo recurso são bloqueados", async () => 
     liberar();
     await c.fechar();
   }
+});
+
+test("Full envia comandos agrupados em um POST JSON", async () => {
+  const chamadas = [];
+
+  await enviarComandosLote({
+    deviceId: "DEV02",
+    api: "Full",
+    recursos: [
+      { id: "R1", estado: "ON" },
+      { id: "R2", estado: "OFF" },
+    ],
+    fetchImpl: async (url, options) => {
+      chamadas.push({ url, options });
+      return {
+        ok: true,
+        json: async () => ({ ok: true, resultados: [] }),
+      };
+    },
+  });
+
+  assert.equal(chamadas.length, 1);
+  assert.equal(chamadas[0].url, "http://dev02.etomada/api/setRecurso");
+  assert.equal(chamadas[0].options.method, "POST");
+  assert.deepEqual(JSON.parse(chamadas[0].options.body), {
+    recursos: [
+      { id: "R1", estado: "ON" },
+      { id: "R2", estado: "OFF" },
+    ],
+  });
+});
+
+test("Lite envia comandos agrupados em uma string GET", async () => {
+  const chamadas = [];
+
+  await enviarComandosLote({
+    deviceId: "DEV",
+    api: "Lite",
+    recursos: [
+      { id: "R1", estado: "ON" },
+      { id: "R2", estado: "OFF" },
+    ],
+    fetchImpl: async (url, options) => {
+      chamadas.push({ url, options });
+      return {
+        ok: true,
+        json: async () => ({ ok: true, resultados: [] }),
+      };
+    },
+  });
+
+  assert.equal(chamadas.length, 1);
+  assert.equal(chamadas[0].options.method, "GET");
+  assert.equal(
+    chamadas[0].url,
+    "http://dev.etomada/api/setReles?estados=R1%3AON-R2%3AOFF",
+  );
 });

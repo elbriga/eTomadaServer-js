@@ -1,7 +1,10 @@
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
-import { enviarComandoRele } from "../devices/nodeClient.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
+import {
+  enviarComandoRele,
+  enviarComandosLote,
+} from "../devices/nodeClient.js";
 
 export class ResourceCommandError extends Error {
   constructor(message, code, statusCode = 409) {
@@ -24,8 +27,8 @@ export function criarResourceService({
   log,
   permitirComandos = false,
   aoComandoConfirmado = null,
-  nodoPermitido = null,
   enviarComando = enviarComandoRele,
+  enviarLote = enviarComandosLote,
 }) {
   const nodes = criarNodeRepository(db);
   const resources = criarResourceRepository(db);
@@ -41,7 +44,12 @@ export function criarResourceService({
     );
   }
 
-  async function executar(globalId, comando, esperado = null) {
+  async function executar(
+    globalId,
+    comando,
+    esperado = null,
+    transportar = enviarComando,
+  ) {
     const recurso = resources.buscarGlobal(globalId);
 
     if (!recurso) {
@@ -61,18 +69,6 @@ export function criarResourceService({
         `Identificação física alterada para ${globalId}`,
         "RESOURCE_MOVED",
         409,
-      );
-    }
-
-    // DEV físico > bloquear comandos destinados a outros nodos.
-    if (
-      nodoPermitido &&
-      recurso.device_id.toUpperCase() !== nodoPermitido.toUpperCase()
-    ) {
-      throw new ResourceCommandError(
-        `Nodo ${recurso.device_id} não autorizado neste ambiente`,
-        "NODE_NOT_ALLOWED",
-        403,
       );
     }
 
@@ -143,7 +139,7 @@ export function criarResourceService({
       // Descarta resultados de polling iniciados antes do comando.
       monitor.receberEvento(recurso.device_id);
 
-      const resposta = await enviarComando({
+      const resposta = await transportar({
         deviceId: node.device_id,
         recursoId: recurso.recurso_id,
         api: node.api,
@@ -268,5 +264,99 @@ export function criarResourceService({
     }
   }
 
-  return { executar };
+  async function executarLote(membros, comando) {
+    const pendentes = [];
+
+    // Cada recurso inicia seu histórico e aguarda o transporte comum.
+    const tarefas = membros.map((recurso) =>
+      executar(
+        recurso.global_id,
+        comando,
+        {
+          device_id: recurso.device_id,
+          recurso_id: recurso.recurso_id,
+        },
+        (dados) =>
+          new Promise((resolve, reject) => {
+            pendentes.push({ ...dados, resolve, reject });
+          }),
+      ),
+    );
+
+    // Registrar os handlers antes do envio evita rejeições sem tratamento.
+    const conclusoes = Promise.allSettled(tarefas);
+
+    if (pendentes.length) {
+      const primeiro = pendentes[0];
+
+      try {
+        if (
+          pendentes.some(
+            (p) => p.deviceId !== primeiro.deviceId || p.api !== primeiro.api,
+          )
+        ) {
+          throw new ResourceCommandError(
+            "Lote contém recursos de nodos diferentes",
+            "INVALID_BATCH",
+            400,
+          );
+        }
+
+        const resposta = await enviarLote({
+          deviceId: primeiro.deviceId,
+          api: primeiro.api,
+          recursos: pendentes.map((p) => ({
+            id: p.recursoId,
+            estado: p.comando,
+          })),
+        });
+
+        // Relacionar confirmações pelo ID físico, nunca pela ordem.
+        const resultados = new Map();
+        for (const item of resposta.resultados) {
+          if (typeof item.id !== "string") continue;
+          resultados.set(item.id, resultados.has(item.id) ? null : item);
+        }
+
+        for (const pendente of pendentes) {
+          const item = resultados.get(pendente.recursoId);
+
+          if (!item) {
+            pendente.reject(
+              new ResourceCommandError(
+                `Sem confirmação de ${pendente.recursoId}`,
+                "NO_CONFIRMATION",
+                502,
+              ),
+            );
+            continue;
+          }
+
+          if (item.ok !== true) {
+            pendente.reject(
+              new ResourceCommandError(
+                item.msg ?? `Comando recusado: ${item.id}`,
+                "DEVICE_REJECTED",
+                502,
+              ),
+            );
+            continue;
+          }
+
+          pendente.resolve({
+            recurso: item.recurso,
+            msg: item.msg ?? null,
+            duracao_ms: resposta.duracao_ms,
+          });
+        }
+      } catch (erro) {
+        // Falha no HTTP > cada registro pendente torna-se incerto.
+        for (const pendente of pendentes) pendente.reject(erro);
+      }
+    }
+
+    return conclusoes;
+  }
+
+  return { executar, executarLote };
 }

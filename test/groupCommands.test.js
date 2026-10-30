@@ -27,20 +27,34 @@ function grupo(recursos) {
   };
 }
 
+// Simula os resultados individuais de um lote sem usar HTTP.
+function simularComandos(executar) {
+  return {
+    executarLote(membros, comando) {
+      return Promise.allSettled(
+        membros.map((recurso) =>
+          executar(recurso.global_id, comando, {
+            device_id: recurso.device_id,
+            recurso_id: recurso.recurso_id,
+          }),
+        ),
+      );
+    },
+  };
+}
+
 test("comando coletivo confirma relés e ignora sensores", async () => {
   const chamados = [];
 
   const service = criarGroupService({
     groups: grupo([rele(1), { ...rele(2), tipo: "SENSOR" }, rele(3)]),
-    comandos: {
-      async executar(id, command, esperado) {
-        chamados.push({ id, command, esperado });
-        return {
-          command_id: chamados.length,
-          estado: false,
-        };
-      },
-    },
+    comandos: simularComandos(async (id, command, esperado) => {
+      chamados.push({ id, command, esperado });
+      return {
+        command_id: chamados.length,
+        estado: false,
+      };
+    }),
     permitirComandos: true,
   });
 
@@ -61,27 +75,25 @@ test("comando coletivo confirma relés e ignora sensores", async () => {
 test("falha e timeout não interrompem os outros recursos", async () => {
   const service = criarGroupService({
     groups: grupo([rele(1), rele(2), rele(3)]),
-    comandos: {
-      async executar(id) {
-        if (id === "LUZ_2") {
-          throw Object.assign(new Error("Timeout"), {
-            code: "TIMEOUT",
-            command_id: 20,
-            execution_status: "uncertain",
-          });
-        }
+    comandos: simularComandos(async (id, command, esperado) => {
+      if (id === "LUZ_2") {
+        throw Object.assign(new Error("Timeout"), {
+          code: "TIMEOUT",
+          command_id: 20,
+          execution_status: "uncertain",
+        });
+      }
 
-        if (id === "LUZ_3") {
-          throw Object.assign(new Error("Estado divergente"), {
-            code: "STATE_MISMATCH",
-            command_id: 21,
-            execution_status: "mismatch",
-          });
-        }
+      if (id === "LUZ_3") {
+        throw Object.assign(new Error("Estado divergente"), {
+          code: "STATE_MISMATCH",
+          command_id: 21,
+          execution_status: "mismatch",
+        });
+      }
 
-        return { command_id: 19, estado: true };
-      },
-    },
+      return { command_id: 19, estado: true };
+    }),
     permitirComandos: true,
   });
 
@@ -102,20 +114,23 @@ test("limita concorrência e preserva ordem dos resultados", async () => {
   let maximo = 0;
 
   const service = criarGroupService({
-    groups: grupo(Array.from({ length: 8 }, (_, i) => rele(i + 1))),
+    groups: grupo(
+      Array.from({ length: 8 }, (_, i) => ({
+        ...rele(i + 1),
+        device_id: `DEV${i + 1}`,
+      })),
+    ),
     concorrencia: 2,
     permitirComandos: true,
-    comandos: {
-      async executar(id) {
-        ativas++;
-        maximo = Math.max(maximo, ativas);
+    comandos: simularComandos(async (id, command, esperado) => {
+      ativas++;
+      maximo = Math.max(maximo, ativas);
 
-        await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise((resolve) => setTimeout(resolve, 5));
 
-        ativas--;
-        return { command_id: Number(id.slice(4)), estado: true };
-      },
-    },
+      ativas--;
+      return { command_id: Number(id.slice(4)), estado: true };
+    }),
   });
 
   const r = await service.executar("TESTE", "ON");
@@ -148,7 +163,25 @@ test("ambiente DEV bloqueia comandos coletivos", async () => {
   assert.equal(chamadas, 0);
 });
 
-async function prepararHttp(enviarComando) {
+async function prepararHttp(
+  enviarComando,
+  enviarLote = async ({ recursos }) => ({
+    resultados: await Promise.all(
+      recursos.map(async ({ id, estado }) => {
+        const resposta = await enviarComando({
+          recursoId: id,
+          comando: estado,
+        });
+        return {
+          id,
+          ok: true,
+          recurso: resposta.recurso,
+        };
+      }),
+    ),
+    duracao_ms: 5,
+  }),
+) {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   inicializarSchema(db);
@@ -194,6 +227,7 @@ async function prepararHttp(enviarComando) {
     log: app.log,
     permitirComandos: true,
     enviarComando,
+    enviarLote,
   });
 
   await app.register(resourcesRoutes, {
@@ -310,6 +344,86 @@ test("comando individual e coletivo compartilham o bloqueio", async () => {
     assert.equal(confirmado.statusCode, 200);
   } finally {
     liberar();
+    await c.fechar();
+  }
+});
+
+test("lote por nodo mantém histórico e falha parcial", async () => {
+  const chamadas = [];
+
+  const c = await prepararHttp(
+    async () => respostaRele(false),
+    async ({ deviceId, api, recursos }) => {
+      chamadas.push({ deviceId, api, recursos });
+
+      return {
+        duracao_ms: 8,
+        resultados: recursos.map(({ id }) => ({
+          id,
+          ok: id !== "R2",
+          msg: id === "R2" ? "Falha no relé" : "OK",
+          recurso: {
+            id,
+            tipo: "RELE",
+            device: { estado: false },
+          },
+        })),
+      };
+    },
+  );
+
+  try {
+    const resources = criarResourceRepository(c.db);
+    const groups = criarGroupRepository(c.db);
+
+    resources.descobrir("SW6FRI", [
+      {
+        id: "R2",
+        tipo: "RELE",
+        device: { estado: false },
+      },
+    ]);
+
+    resources.atualizar("SW6FRI", "R2", {
+      global_id: "LUZ_TESTE_2",
+    });
+
+    groups.adicionarRecurso("TESTE", "LUZ_TESTE_2");
+
+    const resposta = await c.app.inject({
+      method: "POST",
+      url: "/api/groups/TESTE/commands",
+      payload: { command: "OFF" },
+    });
+
+    assert.equal(resposta.statusCode, 200);
+    assert.equal(chamadas.length, 1);
+    assert.equal(chamadas[0].deviceId, "SW6FRI");
+    assert.equal(chamadas[0].api, "Lite");
+    assert.equal(chamadas[0].recursos.length, 2);
+
+    const resultado = resposta.json();
+
+    assert.equal(resultado.ok, false);
+    assert.equal(resultado.summary.attempted, 2);
+    assert.equal(resultado.summary.confirmed, 1);
+    assert.equal(resultado.summary.uncertain, 1);
+
+    const registros = c.db
+      .prepare(
+        `
+      SELECT recurso_id, command, status
+      FROM resource_commands
+      ORDER BY recurso_id
+    `,
+      )
+      .all();
+
+    assert.deepEqual(registros, [
+      { recurso_id: "R1", command: "OFF", status: "confirmed" },
+      { recurso_id: "R2", command: "OFF", status: "uncertain" },
+    ]);
+  } finally {
     await c.fechar();
   }
 });
