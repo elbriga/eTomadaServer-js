@@ -45,6 +45,9 @@ export function criarGroupService({
       );
     }
 
+    const membros = grupo.recursos;
+    const results = new Array(membros.length);
+
     const porNodo = new Map();
 
     // Agrupar recursos acionáveis pelo nodo físico.
