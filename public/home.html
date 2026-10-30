@@ -69,7 +69,9 @@
       <form id="home-form">
         <h2 id="home-editor-title">Configurar grupo</h2>
 
-        <label for="home-group-id">ID interno (não editável após criar)</label>
+        <label for="home-group-id">
+          ID interno (identifica o grupo no banco; não pode ser alterado)
+        </label>
         <input
           id="home-group-id"
           required
@@ -77,7 +79,9 @@
           pattern="[A-Za-z][A-Za-z0-9_]*"
         />
 
-        <label for="home-global-id">Global ID</label>
+        <label for="home-global-id">
+          Global ID (identificador editável para uso nas regras de automação)
+        </label>
         <input
           id="home-global-id"
           required

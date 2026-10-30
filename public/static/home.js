@@ -346,7 +346,11 @@
 
       const disponiveis = recursos
         .filter((r) => r.global_id)
-        .sort((a, b) => collator.compare(nomeRecurso(a), nomeRecurso(b)));
+        .sort(
+          (a, b) =>
+            collator.compare(a.device_id, b.device_id) ||
+            collator.compare(nomeRecurso(a), nomeRecurso(b)),
+        );
 
       if (!disponiveis.length) {
         $("home-members").append(
@@ -356,6 +360,18 @@
             "Nenhum recurso com global_id. Configure-os na página de Nodos.",
           ),
         );
+      }
+
+      if (disponiveis.length) {
+        const cabecalho = elemento("div", "home-member home-member-cabecalho");
+
+        cabecalho.append(
+          elemento("span"),
+          elemento("span", null, "Recurso"),
+          elemento("span", null, "Nodo"),
+        );
+
+        $("home-members").append(cabecalho);
       }
 
       for (const recurso of disponiveis) {
@@ -369,14 +385,12 @@
 
         texto.append(
           elemento("strong", null, nomeRecurso(recurso)),
-          elemento(
-            "small",
-            null,
-            `${recurso.global_id} · ${recurso.device_id}`,
-          ),
+          elemento("small", null, recurso.global_id),
         );
 
-        linha.append(checkbox, texto);
+        const nodo = elemento("span", "home-member-nodo", recurso.device_id);
+
+        linha.append(checkbox, texto, nodo);
         $("home-members").append(linha);
       }
 
