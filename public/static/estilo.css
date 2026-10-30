@@ -68,10 +68,6 @@ button {
   background: white;
 }
 
-input {
-  min-width: 240px;
-}
-
 button {
   cursor: pointer;
   background: #2563eb;
