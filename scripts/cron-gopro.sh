@@ -24,24 +24,114 @@ declare -A COPIADOS=()
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 erro() { log "ERRO: $*" >&2; return 1; }
 
+interromper_cron_anterior() {
+    local pid inicio atual sid cmd
+
+    [[ -r "$ESTADO/cron.pid" ]] || return 1
+    read -r pid inicio < "$ESTADO/cron.pid" || return 1
+
+    [[ "$pid" =~ ^[0-9]+$ &&
+       "$inicio" =~ ^[0-9]+$ &&
+       -r "/proc/$pid/stat" ]] || return 1
+
+    atual="$(awk '{print $22}' "/proc/$pid/stat")"
+    sid="$(ps -o sid= -p "$pid" | tr -d '[:space:]')"
+    cmd="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
+
+    # Confere a identidade para nao matar outro processo
+    [[ "$atual" == "$inicio" &&
+       "$sid" == "$pid" &&
+       "$cmd" == *"$(basename "$0")"* &&
+       "$cmd" == *" cron"* ]] || return 1
+
+    # Nao interrompe exclusao de midias em andamento
+    if [[ -e "$ESTADO/limpeza_critica_$pid" ]]; then
+        log "CRON_ANTERIOR_EM_LIMPEZA: pid=$pid; nao interrompido"
+        return 1
+    fi
+
+    log "ENCERRANDO_CRON_ANTERIOR pid=$pid"
+
+    # Encerra toda a sessao anterior, inclusive curls filhos
+    kill -TERM -- "-$pid" || return 1
+
+    if flock -w 4 9; then
+        return 0
+    fi
+
+    # Se necessario, forca o encerramento da mesma sessao
+    if [[ -r "/proc/$pid/stat" &&
+          "$(awk '{print $22}' "/proc/$pid/stat")" == "$inicio" ]]; then
+        kill -KILL -- "-$pid" 2>/dev/null || true
+    fi
+
+    flock -w 5 9
+}
+
+finalizar() {
+    local pid inicio
+
+    [[ -z "${TMP:-}" ]] || rm -rf -- "$TMP"
+
+    # Remove o registro somente se esta execucao for a proprietaria
+    if [[ "${MODO:-}" == cron && -f "$ESTADO/cron.pid" ]]; then
+        read -r pid inicio < "$ESTADO/cron.pid" || true
+
+        if [[ "${pid:-}" == "$$" &&
+              "${inicio:-}" == "${CRON_START:-}" ]]; then
+            rm -f "$ESTADO/cron.pid" \
+                  "$ESTADO/limpeza_critica_$$"
+        fi
+    fi
+}
+
 preparar() {
     local dep
-    for dep in curl jq jpeginfo exiftool flock stat date sort comm cmp mktemp; do
-        command -v "$dep" >/dev/null || { erro "Dependencia ausente: $dep"; return 1; }
+    MODO="${1:-}"
+
+    for dep in curl jq jpeginfo exiftool flock stat date sort comm \
+               cmp mktemp ps setsid; do
+        command -v "$dep" >/dev/null || {
+            erro "Dependencia ausente: $dep"
+            return 1
+        }
     done
 
     mkdir -p "$ESTADO/tentativas" "$ESTADO/slots" "$BACKUP"
     chmod 700 "$ESTADO"
 
-    # Uma unica execucao por vez, inclusive comandos manuais.
     exec 9>"$ESTADO/execucao.lock"
+
+    # Serializa a inicializacao de dois crons concorrentes
+    if [[ "$MODO" == cron ]]; then
+        exec 8>"$ESTADO/cron-start.lock"
+        flock -x 8
+    fi
+
     if ! flock -n 9; then
-        log "ROTINA_OCUPADA: execucao anterior ainda ativa; pulando"
-        exit 0
+        if [[ "$MODO" != cron ]] ||
+           ! interromper_cron_anterior; then
+
+            log "ROTINA_OCUPADA: execucao manual ou cron nao interrompido"
+            return 1
+        fi
+    fi
+
+    if [[ "$MODO" == cron ]]; then
+        CRON_START="$(awk '{print $22}' "/proc/$$/stat")"
+
+        printf '%s %s\n' "$$" "$CRON_START" \
+            > "$ESTADO/cron.pid"
+
+        flock -u 8
+        exec 8>&-
     fi
 
     TMP="$(mktemp -d "$ESTADO/tmp.XXXXXXXX")"
-    trap 'rm -rf -- "$TMP"' EXIT
+
+    trap finalizar EXIT
+    trap 'exit 143' TERM INT
+
     touch "$INDICE" "$CAPTURAS"
 }
 
@@ -273,47 +363,69 @@ carregar_indice() {
     done < "$INDICE"
 }
 
+jpeg_valido() {
+    local arquivo="$1" esperado="$2" bytes
+
+    [[ -s "$arquivo" && "$esperado" =~ ^[0-9]+$ ]] || return 1
+
+    bytes="$(stat -c %s "$arquivo")" || return 1
+
+    # Verifica se o JPEG pode ser decodificado
+    jpeginfo -c "$arquivo" >/dev/null 2>&1 || return 1
+
+    if (( esperado > 0 && bytes != esperado )); then
+        # Aceita diferenca de apenas um byte, com fim de JPEG intacto
+        (( esperado == bytes + 1 )) || return 1
+
+        [[ "$(tail -c 2 "$arquivo" |
+            od -An -tx1 | tr -d '[:space:]')" == ffd9 ]] || return 1
+    fi
+
+    return 0
+}
+
 # Salva o JPEG primeiro como .part;
 # publica o nome final somente apos validacao.
 baixar_foto() {
     local origem="$1" esperado="$2" destino="$3"
-    local tentativa bytes tipo http
+    local tentativa bytes http rc
 
     mkdir -p "$(dirname "$destino")" || return 1
 
-    for tentativa in 1 2 3; do
+    for tentativa in 1 2; do
         rm -f "$destino.part"
+        rc=0
 
         http="$(curl --noproxy '*' --interface "$WIFI_IFACE" -fLsS \
-            --retry 1 --connect-timeout 5 --max-time 70 \
+            --retry 0 --connect-timeout 5 --max-time 30 \
             -w '%{http_code}' \
             "${MEDIA_URL}/videos/DCIM/${origem}" \
-            -o "$destino.part")" || http='000'
+            -o "$destino.part")" || rc=$?
 
-        if [[ "$http" == 200 && -f "$destino.part" ]]; then
+        bytes=0
+        [[ ! -f "$destino.part" ]] ||
             bytes="$(stat -c %s "$destino.part")"
-            tipo="$(exiftool -s3 -FileType "$destino.part" 2>/dev/null || true)"
 
-            if [[ "$tipo" == JPEG && "$bytes" -gt 0 ]] &&
-                jpeginfo -c "$destino.part" >/dev/null 2>&1 &&
-                { [[ "$esperado" -eq 0 ]] ||
-                  [[ "$bytes" -eq "$esperado" ]]; }; then
+        log "DOWNLOAD_RESPOSTA origem=$origem tentativa=$tentativa http=$http curl_rc=$rc bytes=$bytes esperado=$esperado"
 
-                mv -f -- "$destino.part" "$destino"
+        # Mesmo com timeout, aceita o JPEG se estiver integro
+        if [[ "$http" == 200 ]] &&
+           jpeg_valido "$destino.part" "$esperado"; then
 
-                log "DOWNLOAD_OK arquivo=$origem bytes=$bytes destino=$destino"
-                return 0
+            if (( rc != 0 )); then
+                log "AVISO: curl_rc=$rc, mas JPEG foi validado"
             fi
 
-            log "DOWNLOAD_INVALIDO origem=$origem esperado=$esperado recebido=$bytes tipo=$tipo tentativa=$tentativa"
-        else
-            log "DOWNLOAD_FALHOU origem=$origem http=$http tentativa=$tentativa"
+            mv -f -- "$destino.part" "$destino"
+
+            log "DOWNLOAD_OK origem=$origem bytes=$bytes destino=$destino"
+            return 0
         fi
 
-        sleep 2
+        [[ "$tentativa" == 2 ]] || sleep 1
     done
 
-    erro "Falha de download: $origem (arquivo .part preservado, se existir)"
+    erro "DOWNLOAD_INVALIDO origem=$origem; preservado $destino.part"
 }
 
 # Importa o que ainda estiver no SD. Pula os itens ja copiados.
@@ -421,6 +533,11 @@ limpar_cartao() {
         return 1
     }
 
+    # Nao permitir interrupcao durante exclusao do cartao
+    if [[ "${MODO:-}" == cron ]]; then
+        : > "$ESTADO/limpeza_critica_$$"
+    fi
+
     log 'LIMPEZA_INICIADA: camera/DA (todas as midias do cartao)'
 
     if ! comando camera/DA; then
@@ -480,9 +597,7 @@ validar_backup_para_limpeza() {
         IFS=$'\t' read -r esperado caminho <<< "$linha"
 
         [[ "$esperado" == "$tamanho" && -s "$caminho" ]] &&
-            jpeginfo -c "$caminho" >/dev/null 2>&1 &&
-            { [[ "$tamanho" -eq 0 ]] ||
-              [[ "$(stat -c %s "$caminho")" -eq "$tamanho" ]]; } || {
+                jpeg_valido "$caminho" "$tamanho" || {
             erro "JPEG nao validado para exclusao: $origem"
             return 1
         }
@@ -646,7 +761,7 @@ uso() {
 }
 
 main() {
-    preparar || return 1
+    preparar "${1:-}" || return 1
 
     case "${1:-}" in
         cron)
@@ -679,5 +794,12 @@ main() {
             ;;
     esac
 }
+
+# Cada cron roda em uma sessao isolada, permitindo encerrar
+# o script anterior e todos os seus subprocessos.
+if [[ "${1:-}" == cron &&
+      "${GOPRO_CRON_WORKER:-0}" != 1 ]]; then
+    exec env GOPRO_CRON_WORKER=1 setsid -w bash "$0" "$@"
+fi
 
 main "$@"
