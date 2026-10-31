@@ -572,14 +572,15 @@ limpar_interativo() {
 
 # ===== AGENDAMENTO =====
 
+
 rotina() {
-    local hora minuto tipo slot
+    local hora minuto tipo slot marcador
     hora="$(date +%H)"
     minuto="$(date +%M)"
 
     verificar_conexao || return 1
 
-    # O dia aceso comeca as 22h e termina antes das 16h.
+    # Capturas normais: 22h ate 15h58, a cada 2 minutos
     if (( 10#$hora >= 22 || 10#$hora < 16 )); then
         if (( 10#$minuto % 2 == 0 )); then
             tipo=TL
@@ -593,6 +594,7 @@ rotina() {
                 log "AVISO: falha no disparo do slot $slot"
         fi
 
+    # Capturas avulsas: 17h, 18h, 19h, 20h e 21h
     elif (( 10#$hora >= 17 && 10#$hora <= 21 &&
             10#$minuto == 0 )); then
 
@@ -603,9 +605,41 @@ rotina() {
             log "AVISO: falha no disparo avulso do slot $slot"
     fi
 
-    # Recupera capturas anteriores e publica novas fotos no backup.
-    sincronizar_fotos
+    # Limpeza diaria: primeira execucao bem-sucedida entre 00h e 00h59
+    if [[ "$hora" == 00 ]]; then
+        marcador="$ESTADO/limpeza_$(date +%F).ok"
+
+        if [[ -e "$marcador" ]]; then
+            sincronizar_fotos
+
+        elif [[ "$PERMITIR_FORMATACAO" != 1 ]]; then
+            sincronizar_fotos || return 1
+            log "AVISO: limpeza diaria bloqueada (PERMITIR_FORMATACAO=0)"
+
+        else
+            log "LIMPEZA_DIARIA: sincronizando e validando cartao"
+
+            # Sincroniza e valida tudo que ainda estiver no cartao
+            validar_backup_para_limpeza || {
+                erro "LIMPEZA_DIARIA_CANCELADA: backup nao validado; cartao preservado"
+                return 1
+            }
+
+            # Apaga somente depois da validacao completa
+            limpar_cartao || return 1
+
+            # Marca a limpeza concluida para nao repetir no mesmo dia
+            : > "$marcador"
+
+            log "LIMPEZA_DIARIA_OK: cartao zerado; backup preservado no Raspberry Pi"
+        fi
+
+    else
+        # Nas demais horas, somente sincroniza
+        sincronizar_fotos
+    fi
 }
+
 
 uso() {
     echo "Uso: $0 [cron|status|foto|sincronizar|relogio|bip-off|limpar [force]]"
