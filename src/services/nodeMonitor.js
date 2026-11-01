@@ -101,9 +101,8 @@ export function criarNodeMonitor({
     // Snapshot espontâneo do Full > sinal explícito de boot.
     const bootPush =
       origem === "push" &&
-      Number.isInteger(snapshot.uptime) &&
-      snapshot.uptime >= 0 &&
-      snapshot.uptime < 2 ** 32;
+      Number.isSafeInteger(snapshot.uptime) &&
+      snapshot.uptime >= 0;
 
     if (resultado === "indeterminado" && !bootPush) {
       // Descartamos a referência antiga em vez de
@@ -174,9 +173,8 @@ export function criarNodeMonitor({
   function confirmarBootEstavel(deviceId, snapshot) {
     // Nunca liberar nova tentativa com um boot ainda sujeito ao recovery.
     if (
-      Number.isInteger(snapshot.uptime) &&
-      snapshot.uptime >= 35_000 &&
-      snapshot.uptime < 2 ** 32 &&
+      Number.isSafeInteger(snapshot.uptime) &&
+      snapshot.uptime >= 35 &&
       recovery.limpar(deviceId)
     ) {
       log.info(

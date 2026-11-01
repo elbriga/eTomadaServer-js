@@ -13,43 +13,70 @@ const observacao = (uptime, instanteMs) => ({
 });
 
 test("primeira observação estabelece referência", () => {
-  assert.equal(classificarUptime(null, observacao(5000, 100000)), "inicial");
+  assert.equal(classificarUptime(null, observacao(5, 100000)), "inicial");
 });
 
 test("uptime contínuo após reconexão", () => {
   assert.equal(
-    classificarUptime(observacao(600000, 100000), observacao(7800000, 7300000)),
+    classificarUptime(observacao(600, 100000), observacao(7800, 7300000)),
     "continuo",
   );
 });
 
 test("reboot durante desconexão curta", () => {
   assert.equal(
-    classificarUptime(observacao(600000, 100000), observacao(5000, 130000)),
+    classificarUptime(observacao(600, 100000), observacao(5, 130000)),
     "reiniciou",
   );
 });
 
 test("reboot mesmo com uptime atual maior", () => {
   assert.equal(
-    classificarUptime(observacao(600000, 100000), observacao(5400000, 7300000)),
+    classificarUptime(observacao(600, 100000), observacao(5400, 7300000)),
     "reiniciou",
   );
 });
 
-test("rollover de millis não é reboot", () => {
+test("uptime contínuo atravessa 50 dias", () => {
   assert.equal(
     classificarUptime(
-      observacao(2 ** 32 - 10000, 100000),
-      observacao(20000, 130000),
+      observacao(4_294_960, 100000),
+      observacao(4_294_990, 130000),
     ),
     "continuo",
   );
 });
 
-test("intervalo maior que rollover é indeterminado", () => {
+test("uptime acima de 32 bits continua válido", () => {
   assert.equal(
-    classificarUptime(observacao(1000, 0), observacao(2000, 2 ** 32 + 1000)),
+    classificarUptime(
+      observacao(2 ** 32 + 100, 100000),
+      observacao(2 ** 32 + 130, 130000),
+    ),
+    "continuo",
+  );
+});
+
+test("desconexão superior a 49 dias mantém detecção", () => {
+  const intervaloMs = 2 ** 32 + 1000;
+
+  assert.equal(
+    classificarUptime(observacao(1000, 0), observacao(4_295_968, intervaloMs)),
+    "continuo",
+  );
+
+  assert.equal(
+    classificarUptime(observacao(1000, 0), observacao(10, intervaloMs)),
+    "reiniciou",
+  );
+});
+
+test("uptime fora do intervalo seguro do JS é inválido", () => {
+  assert.equal(
+    classificarUptime(
+      observacao(100, 100000),
+      observacao(Number.MAX_SAFE_INTEGER + 1, 130000),
+    ),
     "indeterminado",
   );
 });
@@ -83,13 +110,13 @@ test("monitor identifica boot via push sem iniciar polling", () => {
       recursos: [],
     });
 
-    assert.equal(monitor.receberSnapshot(snapshot(100000)), true);
+    assert.equal(monitor.receberSnapshot(snapshot(2 ** 32 + 100)), true);
     assert.deepEqual(reinicios, ["GROW"]);
 
-    assert.equal(monitor.receberSnapshot(snapshot(100010)), true);
+    assert.equal(monitor.receberSnapshot(snapshot(2 ** 32 + 110)), true);
     assert.deepEqual(reinicios, ["GROW", "GROW"]);
 
-    assert.equal(monitor.receberSnapshot(snapshot(500)), true);
+    assert.equal(monitor.receberSnapshot(snapshot(5)), true);
     assert.deepEqual(reinicios, ["GROW", "GROW", "GROW"]);
 
     assert.equal(monitor.obterStatus("GROW").origem, "push");

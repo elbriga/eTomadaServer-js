@@ -55,10 +55,10 @@ function exibicao(v) {
   return v === null || v === undefined || v === "" ? "—" : String(v);
 }
 
-function formataUptime(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return "—";
+function formataUptime(segundos) {
+  if (!Number.isFinite(segundos) || segundos < 0) return "—";
 
-  const minutosTotais = Math.floor(ms / 60000);
+  const minutosTotais = Math.floor(segundos / 60);
   const dias = Math.floor(minutosTotais / 1440);
   const horas = Math.floor((minutosTotais % 1440) / 60);
   const minutos = minutosTotais % 60;

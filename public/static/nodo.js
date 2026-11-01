@@ -60,9 +60,10 @@ function exibir(valor) {
     : String(valor);
 }
 
-function formataUptime(ms) {
-  if (!Number.isFinite(ms) || ms < 0) return "—";
-  const minutos = Math.floor(ms / 60000);
+function formataUptime(segundos) {
+  if (!Number.isFinite(segundos) || segundos < 0) return "—";
+
+  const minutos = Math.floor(segundos / 60);
   const dias = Math.floor(minutos / 1440);
   const horas = Math.floor((minutos % 1440) / 60);
   return `${dias}d ${horas}h ${minutos % 60}m`;

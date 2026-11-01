@@ -18,7 +18,7 @@ for (const api of ["Full", "Lite"]) {
       device_id: "DEV",
       api,
       mac: "AA:BB:CC:DD:EE:FF",
-      uptime: 100000,
+      uptime: 100,
       recursos: [],
     });
     const registros = criarRecoveryRepository(db);
@@ -76,7 +76,7 @@ for (const api of ["Full", "Lite"]) {
       assert.equal(quantidadeReboots(), 1);
 
       // Um boot novo ainda instável não libera outra tentativa.
-      snapshotUptime = 10000;
+      snapshotUptime = 10;
       await monitor.consultar("DEV");
       assert.ok(registros.obter("DEV"));
       snapshotUptime = null;
@@ -84,7 +84,7 @@ for (const api of ["Full", "Lite"]) {
       assert.equal(quantidadeReboots(), 1);
 
       // Boot estável encerra o incidente e permite recuperação futura.
-      snapshotUptime = 35000;
+      snapshotUptime = 35;
       await monitor.consultar("DEV");
       assert.equal(registros.obter("DEV"), null);
       snapshotUptime = null;
@@ -92,7 +92,7 @@ for (const api of ["Full", "Lite"]) {
       assert.equal(quantidadeReboots(), 2);
 
       // Status com MAC divergente não autoriza reboot.
-      snapshotUptime = 35000;
+      snapshotUptime = 2 ** 32 + 100;
       await monitor.consultar("DEV");
       snapshotUptime = null;
       recoveryMac = "00:11:22:33:44:55";
