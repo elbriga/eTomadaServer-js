@@ -13,6 +13,7 @@ const campoDescricao = $("nodo-editar-descricao");
 const campoEnabled = $("nodo-editar-enabled");
 const campoTelegram = $("nodo-editar-telegram");
 const botaoSalvarCadastro = $("nodo-salvar");
+const botaoRemover = $("nodo-remover");
 const mensagemCadastro = $("nodo-edicao-mensagem");
 const painelRecursos = $("nodo-recursos-painel");
 const corpoRecursos = $("nodo-recursos-body");
@@ -37,6 +38,7 @@ let verificandoNovoNodo = false;
 let ultimoNodo = null;
 let cadastroSujo = false;
 let salvandoCadastro = false;
+let removendoNodo = false;
 let recursosAtuais = [];
 let editandoRecurso = null;
 let salvandoRecurso = false;
@@ -115,12 +117,13 @@ $("nodo-cancelar").addEventListener("click", () => {
 formCadastro.addEventListener("submit", async (evento) => {
   evento.preventDefault();
 
-  if (!deviceId || !ultimoNodo || ultimoNodo.pendente || salvandoCadastro) {
+  if (!deviceId || !ultimoNodo || ultimoNodo.pendente || salvandoCadastro || removendoNodo) {
     return;
   }
 
   salvandoCadastro = true;
   botaoSalvarCadastro.disabled = true;
+  botaoRemover.disabled = true;
   mensagemCadastro.textContent = "Salvando cadastro...";
 
   try {
@@ -144,11 +147,39 @@ formCadastro.addEventListener("submit", async (evento) => {
   } finally {
     salvandoCadastro = false;
     botaoSalvarCadastro.disabled = false;
+    botaoRemover.disabled = false;
 
     if (!cadastroSujo && ultimoNodo) {
       preencherCadastro(ultimoNodo);
       void carregarNodo();
     }
+  }
+});
+
+botaoRemover.addEventListener("click", async () => {
+  if (!deviceId || !ultimoNodo || ultimoNodo.pendente || salvandoCadastro || removendoNodo) {
+    return;
+  }
+
+  if (!confirm(`Deseja remover o nodo ${deviceId} do cadastro? Esta ação não pode ser desfeita. Se o dispositivo continuar enviando snapshots, poderá aparecer novamente como novo.`)) {
+    return;
+  }
+
+  removendoNodo = true;
+  botaoRemover.disabled = true;
+  botaoSalvarCadastro.disabled = true;
+  mensagemCadastro.textContent = "Removendo nodo...";
+
+  try {
+    await apiJson(`/api/nodes/${encodeURIComponent(deviceId)}`, {
+      method: "DELETE",
+    });
+    location.assign("/nodos");
+  } catch (erro) {
+    mensagemCadastro.textContent = `Erro ao remover: ${erro.message}`;
+    removendoNodo = false;
+    botaoRemover.disabled = false;
+    botaoSalvarCadastro.disabled = false;
   }
 });
 
@@ -241,6 +272,7 @@ function renderizar(nodo) {
 
 // Consulta o estado consolidado, sem acessar diretamente o dispositivo.
 async function carregarNodo() {
+  if (removendoNodo) return;
   if (carregando) {
     atualizacaoPendente = true;
     return;
@@ -253,6 +285,7 @@ async function carregarNodo() {
     if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
 
     const lista = await resposta.json();
+    if (removendoNodo) return;
     if (!Array.isArray(lista)) throw new Error("Resposta inválida");
 
     const nodo = lista.find((item) => item.device_id === deviceId);

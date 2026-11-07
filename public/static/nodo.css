@@ -178,8 +178,19 @@
 
 .nodo-form-acoes {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 16px;
+}
+
+#nodo-remover {
+  margin-left: auto;
+  background: #b91c1c;
+  color: white;
+}
+
+#nodo-remover:hover:not(:disabled) {
+  background: #991b1b;
 }
 
 .botao-secundario {
