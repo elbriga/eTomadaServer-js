@@ -1,4 +1,5 @@
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
+import { criarPendingNodeRepository } from "../repositories/pendingNodeRepository.js";
 import { NodeClientError } from "../devices/nodeClient.js";
 
 const deviceIdSchema = {
@@ -22,6 +23,24 @@ const camposEditaveis = {
 
 export default async function nodesRoutes(app, { db, monitor }) {
   const nodes = criarNodeRepository(db);
+  const novos = criarPendingNodeRepository(db);
+
+  // Remove apenas a descoberta; um novo snapshot poderá descobri-la novamente.
+  app.delete(
+    "/api/nodes/pending/:device_id",
+    { schema: { params: paramsSchema } },
+    (request, reply) => {
+      const deviceId = request.params.device_id.toUpperCase();
+      if (nodes.buscar(deviceId)) {
+        return reply.code(409).send({ detail: "Nodo já cadastrado" });
+      }
+      if (!novos.excluir(deviceId)) {
+        return reply.code(404).send({ detail: "Dispositivo descoberto não encontrado" });
+      }
+      monitor.resetar(deviceId);
+      return reply.code(204).send();
+    },
+  );
 
   // GET /api/nodes
   app.get("/api/nodes", () => nodes.listar());

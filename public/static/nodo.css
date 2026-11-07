@@ -183,14 +183,20 @@
   margin-top: 16px;
 }
 
-#nodo-remover {
+#nodo-remover,
+#nodo-remover-descoberto {
   margin-left: auto;
   background: #b91c1c;
   color: white;
 }
 
-#nodo-remover:hover:not(:disabled) {
+#nodo-remover:hover:not(:disabled),
+#nodo-remover-descoberto:hover:not(:disabled) {
   background: #991b1b;
+}
+
+#nodo-remover-descoberto[hidden] {
+  display: none;
 }
 
 .botao-secundario {

@@ -14,6 +14,7 @@ const campoEnabled = $("nodo-editar-enabled");
 const campoTelegram = $("nodo-editar-telegram");
 const botaoSalvarCadastro = $("nodo-salvar");
 const botaoRemover = $("nodo-remover");
+const botaoRemoverDescoberto = $("nodo-remover-descoberto");
 const mensagemCadastro = $("nodo-edicao-mensagem");
 const painelRecursos = $("nodo-recursos-painel");
 const corpoRecursos = $("nodo-recursos-body");
@@ -183,6 +184,27 @@ botaoRemover.addEventListener("click", async () => {
   }
 });
 
+botaoRemoverDescoberto.addEventListener("click", async () => {
+  if (!deviceId || !ultimoNodo?.pendente || removendoNodo || verificandoNovoNodo) return;
+  if (!confirm(`Deseja remover o dispositivo descoberto ${deviceId}? Se ele enviar outro snapshot, aparecerá novamente como novo.`)) return;
+
+  removendoNodo = true;
+  botaoRemoverDescoberto.disabled = true;
+  botaoAdicionar.disabled = true;
+  mensagem.textContent = "Removendo dispositivo descoberto...";
+  try {
+    await apiJson(`/api/nodes/pending/${encodeURIComponent(deviceId)}`, {
+      method: "DELETE",
+    });
+    location.assign("/nodos");
+  } catch (erro) {
+    mensagem.textContent = `Erro ao remover: ${erro.message}`;
+    removendoNodo = false;
+    botaoRemoverDescoberto.disabled = false;
+    botaoAdicionar.disabled = false;
+  }
+});
+
 function renderizar(nodo) {
   ultimoNodo = nodo;
   painelCadastro.hidden = Boolean(nodo.pendente);
@@ -198,6 +220,7 @@ function renderizar(nodo) {
         ? "disabled"
         : (nodo.status ?? "unknown");
   botaoAdicionar.hidden = !nodo.pendente;
+  botaoRemoverDescoberto.hidden = !nodo.pendente;
   const memoria = snapshot.freeHeap ?? snapshot.free_heap ?? snapshot.heap_free;
   const ultimoErro = nodo.last_error?.detail ?? nodo.last_error?.code;
 
@@ -293,6 +316,7 @@ async function carregarNodo() {
       dados.hidden = true;
       aviso.hidden = true;
       botaoAdicionar.hidden = true;
+      botaoRemoverDescoberto.hidden = true;
       painelCadastro.hidden = true;
       painelRecursos.hidden = true;
       painelRegras.hidden = true;
@@ -323,7 +347,7 @@ async function carregarNodo() {
 
 // Confirmação administrativa > cadastrar o nodo descoberto.
 async function adicionarNodo() {
-  if (!deviceId) return;
+  if (!deviceId || removendoNodo || botaoAdicionar.disabled) return;
 
   const confirmado = confirm(
     `Deseja cadastrar o nodo ${deviceId} no eTomadaServer?`,
@@ -332,6 +356,7 @@ async function adicionarNodo() {
   if (!confirmado) return;
 
   botaoAdicionar.disabled = true;
+  botaoRemoverDescoberto.disabled = true;
   mensagem.textContent = "Cadastrando nodo...";
 
   try {
@@ -385,6 +410,7 @@ async function adicionarNodo() {
     await carregarNodo();
   } finally {
     botaoAdicionar.disabled = false;
+    botaoRemoverDescoberto.disabled = false;
   }
 }
 

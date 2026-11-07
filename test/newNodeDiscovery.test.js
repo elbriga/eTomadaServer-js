@@ -9,6 +9,39 @@ import { criarNodeRepository } from "../src/repositories/nodeRepository.js";
 import { criarResourceRepository } from "../src/repositories/resourceRepository.js";
 import nodesRoutes from "../src/routes/nodes.js";
 import resourcesRoutes from "../src/routes/resources.js";
+import { criarPendingNodeRepository } from "../src/repositories/pendingNodeRepository.js";
+
+test("remover descoberta preserva cadastrados e permite nova descoberta", async () => {
+  const db = new DatabaseSync(":memory:");
+  inicializarSchema(db);
+  const novos = criarPendingNodeRepository(db);
+  const nodes = criarNodeRepository(db);
+  const resetados = [];
+  const app = Fastify();
+  try {
+    await app.register(nodesRoutes, {
+      db,
+      monitor: { resetar: (id) => resetados.push(id) },
+    });
+    novos.registrar({ device_id: "NOVO", recursos: [] });
+    const remover = (id) => app.inject({
+      method: "DELETE",
+      url: `/api/nodes/pending/${id}`,
+    });
+    assert.equal((await remover("novo")).statusCode, 204);
+    assert.equal(novos.buscar("NOVO"), null);
+    assert.deepEqual(resetados, ["NOVO"]);
+    assert.equal((await remover("NOVO")).statusCode, 404);
+    novos.registrar({ device_id: "NOVO", recursos: [] });
+    assert.equal(novos.listar().length, 1);
+    nodes.criar({ device_id: "CADASTRADO" });
+    assert.equal((await remover("CADASTRADO")).statusCode, 409);
+    assert.ok(nodes.buscar("CADASTRADO"));
+  } finally {
+    await app.close();
+    db.close();
+  }
+});
 
 test("descoberta e aprovação de novo nodo", async () => {
   const db = new DatabaseSync(":memory:");
