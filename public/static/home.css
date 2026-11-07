@@ -267,6 +267,24 @@
   font-weight: 700;
 }
 
+.home-sensores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.home-sensores-grid .home-recurso {
+  background: #14352a;
+  flex-wrap: nowrap;
+}
+
+.home-sensores-grid .home-recurso-estado {
+  width: auto;
+  padding-left: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 /* Editor de grupos */
 .home-page .home-dialog {
   background: #142137;

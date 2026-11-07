@@ -486,6 +486,11 @@
       return;
     }
 
+    const sensoresGrid = elemento("div", "home-sensores-grid");
+    if (grupo.recursos.some((recurso) => tipoRecurso(recurso) === "SENSOR")) {
+      recursosContainer.append(sensoresGrid);
+    }
+
     for (const recurso of grupo.recursos) {
       const tipo = tipoRecurso(recurso);
       const linha = elemento("article", "home-recurso");
@@ -536,7 +541,11 @@
         linha.append(criarToggleRele(recurso));
       }
 
-      recursosContainer.append(linha);
+      if (tipo === "SENSOR") {
+        sensoresGrid.append(linha);
+      } else {
+        recursosContainer.append(linha);
+      }
     }
   }
 
