@@ -89,7 +89,15 @@
   }
 
   function nomeRecurso(r) {
-    return r.nome_configurado || r.nome || r.global_id || r.recurso_id;
+    let nome = r.nome_configurado || r.nome || r.global_id || r.recurso_id;
+    if (r.tipo === "SENSOR") {
+      const sensor = nodos
+        .get(r.device_id.toUpperCase())
+        ?.snapshot?.recursos?.find((rec) => rec.id === r.recurso_id);
+      const cat = sensor?.device?.categoria;
+      if (cat !== null && cat !== undefined) nome += " - " + cat;
+    }
+    return nome;
   }
 
   function tipoRecurso(r) {
@@ -125,6 +133,20 @@
     return ["offline", "recovery", "disabled"].includes(
       nodos.get(recurso.device_id.toUpperCase())?.status,
     );
+  }
+
+  function dadosSensor(recurso) {
+    const dadosRec = JSON.parse(recurso.reported_json ?? "null");
+
+    const sensor = nodos
+      .get(recurso.device_id.toUpperCase())
+      ?.snapshot?.recursos?.find((r) => r.id === recurso.recurso_id);
+    const dados = sensor?.device;
+
+    const valor = dadosRec?.valor ?? dados?.valor;
+    if (valor === null || valor === undefined) return "Sem leitura";
+
+    return `${valor} ${dados.unidade ?? sensor.unidade ?? ""}`.trim();
   }
 
   // Estado coletivo > considerar somente relés com global_id
@@ -496,9 +518,12 @@
             ? "Níveis em preparação"
             : tipo === "BOTAO"
               ? "Momentâneo"
-              : "Sem controle";
+              : tipo === "SENSOR"
+                ? dadosSensor(recurso)
+                : "Sem controle";
 
       const estado = elemento("span", "home-recurso-estado", valor);
+      if (tipo === "SENSOR") estado.classList.add("home-sensor-valor");
 
       if (estaOffline(recurso)) {
         estado.classList.add("home-indisponivel");

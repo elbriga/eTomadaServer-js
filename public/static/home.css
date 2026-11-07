@@ -262,6 +262,11 @@
   color: #fdba74;
 }
 
+.home-recurso-estado.home-sensor-valor {
+  font-size: 24px;
+  font-weight: 700;
+}
+
 /* Editor de grupos */
 .home-page .home-dialog {
   background: #142137;
