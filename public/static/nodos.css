@@ -102,6 +102,43 @@
   color: #475569;
 }
 
+.nodo-wifi {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.nodo-wifi-excelente {
+  color: #14532d;
+  background: #bbf7d0;
+}
+
+.nodo-wifi-bom {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.nodo-wifi-regular {
+  color: #854d0e;
+  background: #fef9c3;
+}
+
+.nodo-wifi-fraco {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.nodo-wifi-muito-fraco {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.nodo-wifi-desconhecido {
+  color: #475569;
+  background: #e2e8f0;
+}
+
 .nodos-vazio {
   padding: 24px !important;
   text-align: center;

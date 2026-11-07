@@ -71,6 +71,23 @@ function formataMemoria(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+function qualidadeWifi(dbm) {
+  if (!Number.isFinite(dbm)) {
+    return { texto: "Sem informação", classe: "desconhecido" };
+  }
+
+  // Escala aproximada: -100 dBm equivale a 0 e -50 dBm a 100.
+  const pontos = Math.round(Math.max(0, Math.min(100, 2 * (dbm + 100))));
+  const [descricao, classe] =
+    pontos >= 80 ? ["Excelente", "excelente"] :
+    pontos >= 60 ? ["Bom", "bom"] :
+    pontos >= 40 ? ["Regular", "regular"] :
+    pontos >= 20 ? ["Fraco", "fraco"] :
+    ["Muito fraco", "muito-fraco"];
+
+  return { texto: `${descricao} (${pontos})`, classe };
+}
+
 function formataContato(segundos) {
   if (!Number.isFinite(segundos) || segundos <= 0) return "—";
   return new Date(segundos * 1000).toLocaleString("pt-BR");
@@ -104,6 +121,8 @@ function renderizarNodos() {
 
   for (const nodo of filtrados) {
     const tr = document.createElement("tr");
+    const sinalDbm = valor(nodo, "wifiPower");
+    const sinalWifi = qualidadeWifi(sinalDbm);
 
     const colunas = [
       exibicao(nodo.device_id),
@@ -116,9 +135,7 @@ function renderizarNodos() {
       exibicao(valor(nodo, "ssid")),
       formataUptime(valor(nodo, "uptime")),
       formataMemoria(valor(nodo, "memoria")),
-      Number.isFinite(valor(nodo, "wifiPower"))
-        ? `${valor(nodo, "wifiPower")} dBm`
-        : "—",
+      sinalWifi.texto,
       formataContato(valor(nodo, "last_seen_at")),
     ];
 
@@ -142,6 +159,12 @@ function renderizarNodos() {
     indicador.textContent = colunas[1];
 
     tr.children[1].replaceChildren(indicador);
+
+    const sinal = document.createElement("span");
+    sinal.className = `nodo-wifi nodo-wifi-${sinalWifi.classe}`;
+    sinal.textContent = sinalWifi.texto;
+    if (Number.isFinite(sinalDbm)) sinal.title = `${sinalDbm} dBm`;
+    tr.children[10].replaceChildren(sinal);
     fragmento.appendChild(tr);
   }
 
