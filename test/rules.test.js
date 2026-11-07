@@ -73,7 +73,7 @@ const localBody = {
   },
 };
 
-test("schema atual e migração 4→10", () => {
+test("schema atual e migração 4→atual", () => {
   const db = prepararBanco();
 
   try {
@@ -91,6 +91,8 @@ test("schema atual e migração 4→10", () => {
       ALTER TABLE groups DROP COLUMN global_id;
       ALTER TABLE nodes DROP COLUMN descricao;
       ALTER TABLE nodes DROP COLUMN telegram_alert;
+      ALTER TABLE resources DROP COLUMN otimizar_historico;
+      ALTER TABLE events DROP COLUMN history_optimized;
       PRAGMA user_version = 4;
 
       INSERT INTO logs (timestamp, device_id, message)

@@ -1,3 +1,4 @@
+import { criarHistoryOptimization } from "../services/historyOptimization.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
 import { criarRuleRepository } from "../repositories/ruleRepository.js";
@@ -22,6 +23,7 @@ export default async function resourcesRoutes(
   },
 ) {
   const resources = criarResourceRepository(db);
+  const historico = criarHistoryOptimization(db);
   const nodes = criarNodeRepository(db);
   const rules = criarRuleRepository(db);
   const commandHistory = criarCommandRepository(db);
@@ -379,12 +381,18 @@ export default async function resourcesRoutes(
               type: "string",
               maxLength: 500,
             },
+            otimizar_historico: { type: "boolean" },
           },
         },
       },
     },
     (request, reply) => {
       const { device_id, recurso_id } = request.params;
+
+      const configuracao = resources.buscar(device_id, recurso_id);
+      if (request.body.otimizar_historico !== undefined && configuracao && configuracao.tipo !== "SENSOR") {
+        return reply.code(422).send({ detail: "Otimização disponível apenas para SENSOR" });
+      }
 
       // Protege referências de regras globais ao renomear global_id
       const atual = resources.buscar(device_id, recurso_id);
@@ -414,12 +422,19 @@ export default async function resourcesRoutes(
       }
 
       try {
-        return (
-          resources.atualizar(device_id, recurso_id, request.body) ??
-          reply.code(404).send({
-            detail: "Recurso não encontrado",
-          })
-        );
+        db.exec("BEGIN IMMEDIATE");
+        let atualizado;
+        try {
+          atualizado = resources.atualizar(device_id, recurso_id, request.body);
+          if (atualizado?.tipo === "SENSOR" && atualizado.otimizar_historico) {
+            historico.compactar(atualizado.device_id, atualizado.recurso_id);
+          }
+          db.exec("COMMIT");
+        } catch (erro) {
+          db.exec("ROLLBACK");
+          throw erro;
+        }
+        return atualizado ?? reply.code(404).send({ detail: "Recurso não encontrado" });
       } catch (erro) {
         if (
           erro.message?.includes(

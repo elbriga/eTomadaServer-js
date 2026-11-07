@@ -236,6 +236,12 @@
   max-width: 280px;
 }
 
+.nodo-recursos-tabela input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+}
+
 .nodo-recursos-tabela button {
   height: 30px;
   padding: 0 10px;

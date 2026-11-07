@@ -310,7 +310,7 @@ test("global_id dos grupos: valor padrão, edição e unicidade", () => {
   }
 });
 
-test("migração v9 para v10 preserva associações", () => {
+test("migração v9 para versão atual preserva associações", () => {
   const { db, groups } = preparar();
 
   try {
@@ -321,6 +321,8 @@ test("migração v9 para v10 preserva associações", () => {
     db.exec(`
       DROP INDEX idx_groups_global_id;
       ALTER TABLE groups DROP COLUMN global_id;
+      ALTER TABLE resources DROP COLUMN otimizar_historico;
+      ALTER TABLE events DROP COLUMN history_optimized;
       PRAGMA user_version = 9;
     `);
 

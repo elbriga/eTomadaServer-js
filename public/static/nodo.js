@@ -493,6 +493,19 @@ function renderizarRecursos() {
       celula(tr, recurso.descricao);
     }
 
+    const tdOtimizacao = celula(tr, "—");
+    if (recurso.tipo === "SENSOR") {
+      tdOtimizacao.textContent = "";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.dataset.campo = "otimizar_historico";
+      checkbox.checked = Boolean(recurso.otimizar_historico);
+      checkbox.disabled = !editando;
+      checkbox.setAttribute("aria-label", `Otimizar histórico de ${recurso.nome || recurso.recurso_id}`);
+      checkbox.title = "Reduz ruído e substitui permanentemente leituras antigas por médias. Desmarcar não restaura os originais.";
+      tdOtimizacao.appendChild(checkbox);
+    }
+
     const tdEstado = celula(tr, estadoReportado(recurso));
     if (recurso.reported_at) {
       tdEstado.title = `Último estado: ${formataData(recurso.reported_at)}`;
@@ -570,6 +583,9 @@ async function salvarRecurso(tr, recursoId) {
     nome_configurado: campo("nome_configurado"),
     descricao: campo("descricao"),
   };
+
+  const otimizacao = tr.querySelector('[data-campo="otimizar_historico"]');
+  if (otimizacao) alteracoes.otimizar_historico = otimizacao.checked;
 
   salvandoRecurso = true;
   tr.querySelectorAll("button").forEach((b) => {

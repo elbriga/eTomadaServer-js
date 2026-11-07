@@ -4,7 +4,8 @@
 // Versão 8: Descrição administrativa dos nodos
 // Versão 9: Alertas Telegram por nodo
 // Versão 10: Identificador global dos grupos
-export const SCHEMA_VERSION = 10;
+// Versão 11: Otimização opcional do histórico de sensores
+export const SCHEMA_VERSION = 11;
 
 const COLUNAS = {
   logs: [
@@ -29,6 +30,7 @@ const COLUNAS = {
     "status",
     "estado",
     "estado2",
+    "history_optimized",
   ],
   resources: [
     "device_id",
@@ -41,6 +43,7 @@ const COLUNAS = {
     "descricao",
     "reported_json",
     "reported_at",
+    "otimizar_historico",
   ],
   history_screens: ["name", "charts_json"],
   nodes: [
@@ -365,6 +368,14 @@ const migracoes = {
 
       CREATE UNIQUE INDEX idx_groups_global_id
         ON groups(global_id COLLATE NOCASE);
+    `);
+  },
+  11(db) {
+    db.exec(`
+      ALTER TABLE resources ADD COLUMN otimizar_historico INTEGER NOT NULL DEFAULT 0
+        CHECK (otimizar_historico IN (0, 1));
+      ALTER TABLE events ADD COLUMN history_optimized INTEGER NOT NULL DEFAULT 0
+        CHECK (history_optimized IN (0, 1));
     `);
   },
 };

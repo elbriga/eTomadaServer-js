@@ -26,7 +26,7 @@ function extrairEstado(device) {
 export function criarResourceRepository(db) {
   const campos = `
     device_id, recurso_id, nome, tipo, updated_at,
-    global_id, nome_configurado, descricao, reported_json, reported_at
+    global_id, nome_configurado, descricao, reported_json, reported_at, otimizar_historico
   `;
 
   const listarTodos = db.prepare(`
@@ -60,7 +60,7 @@ export function criarResourceRepository(db) {
 
   const update = db.prepare(`
     UPDATE resources SET
-      global_id = ?, nome_configurado = ?, descricao = ?,
+      global_id = ?, nome_configurado = ?, descricao = ?, otimizar_historico = ?,
       updated_at = unixepoch()
     WHERE device_id = ? AND recurso_id = ?
   `);
@@ -191,7 +191,9 @@ export function criarResourceRepository(db) {
           ? atual.descricao
           : alteracoes.descricao.trim();
 
-      update.run(globalId, nome, descricao, atual.device_id, atual.recurso_id);
+      update.run(globalId, nome, descricao,
+        Number(alteracoes.otimizar_historico ?? atual.otimizar_historico),
+        atual.device_id, atual.recurso_id);
 
       return buscarFisico.get(atual.device_id, atual.recurso_id);
     },

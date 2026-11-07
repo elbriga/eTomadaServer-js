@@ -1,3 +1,4 @@
+import { criarHistoryOptimization, JANELA_SEGUNDOS } from "../services/historyOptimization.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
@@ -15,6 +16,8 @@ export default async function eventsRoutes(
   });
 
   const resources = criarResourceRepository(db);
+  const historico = criarHistoryOptimization(db);
+  const ultimaCompactacao = new Map();
   const nodes = criarNodeRepository(db);
   const commands = criarCommandRepository(db);
 
@@ -94,7 +97,14 @@ export default async function eventsRoutes(
         // Atualização parcial, sem criar recursos desconhecidos.
         atualizado = resources.aplicarEvento(event.origem, event.id, device);
 
+        const recurso = resources.buscar(event.origem, event.id);
+        const chave = JSON.stringify([recurso?.device_id, event.id]);
+        const janela = Math.floor(timestamp / JANELA_SEGUNDOS);
+        if (recurso?.tipo === "SENSOR" && recurso.otimizar_historico && ultimaCompactacao.get(chave) !== janela) {
+          historico.compactar(recurso.device_id, event.id, timestamp);
+        }
         db.exec("COMMIT");
+        if (recurso?.otimizar_historico) ultimaCompactacao.set(chave, janela);
       } catch (erro) {
         db.exec("ROLLBACK");
         throw erro;
