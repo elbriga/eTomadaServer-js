@@ -221,7 +221,7 @@ window.criarEditorRegras = function criarEditorRegras({
     const anterior = el("destino").value;
 
     const destinos = recursos
-      .filter((r) => r.tipo === "RELE" && identificador(r))
+      .filter((r) => ["RELE", "LEDRGB"].includes(r.tipo) && identificador(r))
       .map((r) => ({
         valor: identificador(r),
         texto: rotulo(r),

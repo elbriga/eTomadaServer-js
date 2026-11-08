@@ -114,7 +114,10 @@ export function criarRuleService(db) {
       exigir(encontrado, `Recurso não encontrado: ${id}`);
 
       if (destino) {
-        exigir(encontrado.tipo === "RELE", `Ação exige um relé: ${id}`);
+        exigir(
+          ["RELE", "LEDRGB"].includes(encontrado.tipo),
+          `Ação exige um relé ou LED: ${id}`,
+        );
       }
 
       return global ? encontrado.global_id : encontrado.recurso_id;
