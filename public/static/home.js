@@ -233,14 +233,15 @@
     return botao;
   }
 
-  function criarToggleGrupo(grupo) {
+  function criarToggleGrupo(grupo, somenteDesligar = false) {
     const info = resumo(grupo);
     const ocupado = grupoOcupado(grupo);
-    const comando = info.estado === "on" ? "OFF" : "ON";
+    const comando = somenteDesligar || info.estado === "on" ? "OFF" : "ON";
 
     const botao = elemento("button", "home-toggle home-toggle-grupo");
     botao.type = "button";
-    botao.disabled = ocupado || info.estado === "empty";
+    botao.disabled =
+      ocupado || info.estado === "empty" || (somenteDesligar && info.estado === "off");
 
     botao.classList.toggle("ligado", info.estado === "on");
     botao.classList.toggle(
@@ -440,7 +441,7 @@
       });
 
       const controle = elemento("div", "home-card-controle");
-      controle.append(criarToggleGrupo(grupo));
+      controle.append(criarToggleGrupo(grupo, true));
 
       card.append(abrir, editar, controle);
       gruposContainer.append(card);
