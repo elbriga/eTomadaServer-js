@@ -51,7 +51,7 @@ export function criarRuleEngine({
         }
 
         // Se o relé já está desligado, não há nada a fazer.
-        if (obterEstadoRele(timer.globalId) !== 1) {
+        if (obterEstadoRecurso(timer.globalId) !== 1) {
           log.info(
             { module: "RULES", global_id: timer.globalId },
             "[TIMER] OFF dispensado: estado não está confirmado como ON",
@@ -109,21 +109,26 @@ export function criarRuleEngine({
   }
 
   // Obtém estado digital confirmado de um relé.
-  function obterEstadoRele(globalId) {
+  function obterEstadoRecurso(globalId) {
     const recurso = resources.buscarGlobal(globalId);
 
     if (
-      recurso?.tipo !== "RELE" ||
+      !["RELE", "LEDRGB"].includes(recurso?.tipo) ||
       !recurso.reported_json ||
       !recurso.reported_at
     )
       return null;
 
     try {
-      const estado = JSON.parse(recurso.reported_json).estado;
+      const device = JSON.parse(recurso.reported_json);
 
-      if (estado === true || estado === 1) return 1;
-      if (estado === false || estado === 0) return 0;
+      if (recurso?.tipo == "RELE") {
+        if (device.estado === true || device.estado === 1) return 1;
+        if (device.estado === false || device.estado === 0) return 0;
+      } else {
+        // LEDRGB
+        return device.anim;
+      }
     } catch {
       // Estado inválido ou indisponível.
     }
@@ -165,7 +170,7 @@ export function criarRuleEngine({
       ...valoresEvento,
     };
 
-    return avaliarRegrasGlobais(regras, evento, valores);
+    return avaliarRegrasGlobais(regras, evento, valores, log);
   }
 
   // Proteção contra cascatas de comandos entre regras.
@@ -225,8 +230,8 @@ export function criarRuleEngine({
 
       const destino = resources.buscarGlobal(recurso);
 
-      if (destino?.tipo !== "RELE") {
-        log.warn(contexto, "Destino não é um relé válido");
+      if (!["RELE", "LEDRGB"].includes(destino?.tipo)) {
+        log.warn(contexto, "Destino não é um relé ou LED válido");
         continue;
       }
 
@@ -252,7 +257,7 @@ export function criarRuleEngine({
 
       // TOGGLE > inverte o estado confirmado do destino.
       if (comando === "TOGGLE") {
-        const estado = obterEstadoRele(recurso);
+        const estado = obterEstadoRecurso(recurso);
 
         if (estado === null) {
           log.warn(contexto, "TOGGLE ignorado: estado do destino desconhecido");
@@ -285,13 +290,13 @@ export function criarRuleEngine({
 
       // TOGGLEF > inverte destino e sincroniza a origem.
       if (comando === "TOGGLEF") {
-        const estadoDestino = obterEstadoRele(recurso);
+        const estadoDestino = obterEstadoRecurso(recurso);
         const origemGlobal = atual.quando.recurso;
         const recursoOrigem = resources.buscarGlobal(origemGlobal);
 
         const estadoOrigem = Object.hasOwn(valoresEvento, origemGlobal)
           ? valoresEvento[origemGlobal]
-          : obterEstadoRele(origemGlobal);
+          : obterEstadoRecurso(origemGlobal);
 
         if (
           atual.quando.tipo !== "EVENTO" ||
@@ -408,7 +413,7 @@ export function criarRuleEngine({
     return tarefa;
   }
 
-  async function processarEvento(eventoRecebido, estadoAnterior = null) {
+  async function processarEvento(eventoRecebido) {
     const { origem: deviceId, id: recursoId, evento: tipo } = eventoRecebido;
 
     const recurso = resources.buscar(deviceId, recursoId);
@@ -428,17 +433,6 @@ export function criarRuleEngine({
         : device.estado === false || device.estado === 0
           ? 0
           : null;
-
-    // Evita reexecutar a regra em eventos TOGGLE
-    // duplicados que não representam mudança de estado.
-    if (
-      evento.tipo === "TOGGLE" &&
-      estadoAtual !== null &&
-      estadoAnterior !== null &&
-      estadoAtual === estadoAnterior
-    ) {
-      return [];
-    }
 
     if (estadoAtual !== null) {
       valoresEvento[recurso.global_id] = estadoAtual;
@@ -469,7 +463,7 @@ export function criarRuleEngine({
       minuto,
     };
 
-    const acoes = avaliarRegrasGlobais(regras, evento, valores);
+    const acoes = avaliarRegrasGlobais(regras, evento, valores, log);
 
     const origem =
       `HORARIO ${String(hora).padStart(2, "0")}:` +

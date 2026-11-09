@@ -1,4 +1,7 @@
-import { criarHistoryOptimization, JANELA_SEGUNDOS } from "../services/historyOptimization.js";
+import {
+  criarHistoryOptimization,
+  JANELA_SEGUNDOS,
+} from "../services/historyOptimization.js";
 import { criarResourceRepository } from "../repositories/resourceRepository.js";
 import { criarCommandRepository } from "../repositories/commandRepository.js";
 import { criarNodeRepository } from "../repositories/nodeRepository.js";
@@ -60,21 +63,6 @@ export default async function eventsRoutes(
 
       const timestamp = Math.floor(Date.now() / 1000);
 
-      let estadoAnterior = null;
-
-      if (ruleEngine && event.evento?.toUpperCase() === "TOGGLE") {
-        const anterior = resources.buscar(event.origem, event.id);
-
-        try {
-          const estado = JSON.parse(anterior?.reported_json ?? "null")?.estado;
-
-          if (estado === true || estado === 1) estadoAnterior = 1;
-          else if (estado === false || estado === 0) estadoAnterior = 0;
-        } catch {
-          // Estado desconhecido; o evento ainda será processado.
-        }
-      }
-
       let id;
       let atualizado = false;
 
@@ -100,7 +88,11 @@ export default async function eventsRoutes(
         const recurso = resources.buscar(event.origem, event.id);
         const chave = JSON.stringify([recurso?.device_id, event.id]);
         const janela = Math.floor(timestamp / JANELA_SEGUNDOS);
-        if (recurso?.tipo === "SENSOR" && recurso.otimizar_historico && ultimaCompactacao.get(chave) !== janela) {
+        if (
+          recurso?.tipo === "SENSOR" &&
+          recurso.otimizar_historico &&
+          ultimaCompactacao.get(chave) !== janela
+        ) {
           historico.compactar(recurso.device_id, event.id, timestamp);
         }
         db.exec("COMMIT");
@@ -132,7 +124,7 @@ export default async function eventsRoutes(
           if (!ativo) return;
 
           const tarefa = Promise.resolve()
-            .then(() => ruleEngine.processarEvento(event, estadoAnterior))
+            .then(() => ruleEngine.processarEvento(event))
             .catch((erro) => {
               app.log.error(
                 { module: "RULES", err: erro },

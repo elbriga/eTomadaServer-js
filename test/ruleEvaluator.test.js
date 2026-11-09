@@ -30,6 +30,24 @@ const evento = {
   recurso: "BOTAO_GROW",
 };
 
+test("registra log somente quando a regra dispara e o check é atendido", () => {
+  const registros = [];
+  const log = { info: (...args) => registros.push(args) };
+  const regra = criar({
+    quando: { ...criar().quando, check: { variavel: "R1", operacao: "=", valor: 1 } },
+  });
+
+  avaliarRegrasGlobais([regra], evento, { R1: 0 }, log);
+  avaliarRegrasGlobais([regra], { ...evento, tipo: "DUPCLICK" }, { R1: 1 }, log);
+  assert.equal(registros.length, 0);
+
+  avaliarRegrasGlobais([regra], evento, { R1: 1 }, log);
+  assert.deepEqual(registros, [[
+    { module: "RULES", regra_id: 1, revision: 1, evento },
+    "Regra disparou",
+  ]]);
+});
+
 test("EVENTO: compara tipo e recurso; ignora inativas", () => {
   assert.equal(avaliarRegra(criar(), { ...evento, tipo: "DUPCLICK" }), null);
 

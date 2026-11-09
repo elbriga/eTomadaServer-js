@@ -1,4 +1,4 @@
-// Avalia regras sem banco, relógio ou efeitos colaterais.
+// Avalia regras sem banco ou relógio, com logger opcional.
 
 function comparar(valor, operacao, esperado) {
   switch (operacao) {
@@ -34,7 +34,7 @@ function checkAtendido(check, valores) {
   return comparar(valor, check.operacao, check.valor);
 }
 
-export function avaliarRegra(regra, evento, valores = {}) {
+export function avaliarRegra(regra, evento, valores = {}, log = null) {
   if (!regra?.ativa || !regra.quando || !regra.acao || !evento) return null;
 
   const condicao = regra.quando;
@@ -52,6 +52,11 @@ export function avaliarRegra(regra, evento, valores = {}) {
 
   if (!disparou || !checkAtendido(condicao.check, valores)) return null;
 
+  log?.info(
+    { module: "RULES", regra_id: regra.id, revision: regra.revision, evento },
+    "Regra disparou",
+  );
+
   return {
     regra_id: regra.id,
     revision: regra.revision,
@@ -59,13 +64,13 @@ export function avaliarRegra(regra, evento, valores = {}) {
   };
 }
 
-export function avaliarRegrasGlobais(regras, evento, valores = {}) {
+export function avaliarRegrasGlobais(regras, evento, valores = {}, log = null) {
   const acoes = [];
 
   for (const regra of regras) {
     if (regra.escopo !== "GLOBAL") continue;
 
-    const acao = avaliarRegra(regra, evento, valores);
+    const acao = avaliarRegra(regra, evento, valores, log);
 
     if (acao) acoes.push(acao);
   }

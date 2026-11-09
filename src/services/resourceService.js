@@ -72,7 +72,7 @@ export function criarResourceService({
       );
     }
 
-    if (recurso.tipo !== "RELE") {
+    if (recurso.tipo !== "RELE" && recurso.tipo !== "LEDRGB") {
       throw new ResourceCommandError(
         `Tipo ${recurso.tipo} não suporta este comando`,
         "UNSUPPORTED_RESOURCE",

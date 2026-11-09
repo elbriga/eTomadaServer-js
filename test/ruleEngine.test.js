@@ -95,8 +95,9 @@ test("evento físico dispara regra global", async () => {
     assert.equal(acoes[0].acao.recurso, "LUZ_GROW");
     assert.equal(acoes[0].acao.comando, "ON");
 
-    assert.equal(logs.length, 1);
-    assert.match(logs[0].mensagem, /SIMULACAO/);
+    assert.equal(logs.length, 2);
+    assert.equal(logs[0].mensagem, "Regra disparou");
+    assert.match(logs[1].mensagem, /SIMULACAO/);
   } finally {
     db.close();
   }
@@ -189,7 +190,8 @@ test("POST /api/evento mantém persistência e aciona simulação", async () => 
     assert.equal(salvo.recurso_id, "B1");
     assert.equal(salvo.evento, "CLICK");
 
-    assert.equal(logs.length, 1);
+    assert.equal(logs.length, 2);
+    assert.equal(logs[0].mensagem, "Regra disparou");
     assert.equal(logs[0].dados.regra_id, 1);
   } finally {
     await app.close();
