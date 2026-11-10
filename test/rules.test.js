@@ -89,6 +89,7 @@ test("schema atual e migração 4→atual", () => {
       DROP TABLE rules;
       DROP INDEX idx_groups_global_id;
       ALTER TABLE groups DROP COLUMN global_id;
+      ALTER TABLE groups DROP COLUMN trancado;
       ALTER TABLE nodes DROP COLUMN descricao;
       ALTER TABLE nodes DROP COLUMN telegram_alert;
       ALTER TABLE resources DROP COLUMN otimizar_historico;

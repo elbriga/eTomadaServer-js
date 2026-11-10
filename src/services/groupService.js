@@ -37,6 +37,14 @@ export function criarGroupService({
       throw new GroupCommandError("Comando inválido", "INVALID_COMMAND", 400);
     }
 
+    if (grupo.trancado) {
+      throw new GroupCommandError(
+        "Grupo trancado: comandos coletivos bloqueados",
+        "GROUP_LOCKED",
+        403,
+      );
+    }
+
     if (!permitirComandos) {
       throw new GroupCommandError(
         "Comandos físicos desabilitados neste ambiente",

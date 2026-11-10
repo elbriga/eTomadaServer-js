@@ -115,12 +115,13 @@ export default async function groupsRoutes(
             global_id: groupIdSchema,
             nome: nomeSchema,
             descricao: descricaoSchema,
+            trancado: { type: "boolean" },
           },
         },
       },
     },
     (request, reply) => {
-      const { group_id, global_id, nome, descricao } = request.body;
+      const { group_id, global_id, nome, descricao, trancado } = request.body;
 
       if (nome !== undefined && !nome.trim()) {
         return reply.code(400).send({
@@ -138,6 +139,7 @@ export default async function groupsRoutes(
 
       const grupo = groups.criar({
         group_id,
+        trancado,
         global_id: idGlobal,
         nome: nome?.trim() ?? group_id.toUpperCase(),
         descricao: descricao?.trim() ?? "",
@@ -182,6 +184,7 @@ export default async function groupsRoutes(
           properties: {
             nome: nomeSchema,
             descricao: descricaoSchema,
+            trancado: { type: "boolean" },
             global_id: groupIdSchema,
           },
         },

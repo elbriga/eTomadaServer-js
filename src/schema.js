@@ -5,7 +5,8 @@
 // Versão 9: Alertas Telegram por nodo
 // Versão 10: Identificador global dos grupos
 // Versão 11: Otimização opcional do histórico de sensores
-export const SCHEMA_VERSION = 11;
+// Versão 12: Bloqueio de comandos coletivos por grupo
+export const SCHEMA_VERSION = 12;
 
 const COLUNAS = {
   logs: [
@@ -80,6 +81,7 @@ const COLUNAS = {
     "finished_at",
   ],
   groups: [
+    "trancado",
     "group_id",
     "global_id",
     "nome",
@@ -376,6 +378,12 @@ const migracoes = {
         CHECK (otimizar_historico IN (0, 1));
       ALTER TABLE events ADD COLUMN history_optimized INTEGER NOT NULL DEFAULT 0
         CHECK (history_optimized IN (0, 1));
+    `);
+  },
+  12(db) {
+    db.exec(`
+      ALTER TABLE groups ADD COLUMN trancado INTEGER NOT NULL DEFAULT 0
+        CHECK (trancado IN (0, 1));
     `);
   },
 };

@@ -313,7 +313,7 @@
   // Comando coletivo > uma chamada HTTP ao servidor por grupo.
   async function comandarGrupo(groupId, comando) {
     const grupo = grupoPorId(groupId);
-    if (!grupo || grupoOcupado(grupo)) return;
+    if (!grupo || grupo.trancado || grupoOcupado(grupo)) return;
 
     const reles = relesDoGrupo(grupo);
     if (!reles.length) return;
@@ -441,7 +441,7 @@
       });
 
       const controle = elemento("div", "home-card-controle");
-      controle.append(criarToggleGrupo(grupo, true));
+      if (!grupo.trancado) controle.append(criarToggleGrupo(grupo, true));
 
       card.append(abrir, editar, controle);
       gruposContainer.append(card);
@@ -472,7 +472,10 @@
       void comandarGrupo(grupo.group_id, "OFF");
     });
 
-    controles.replaceChildren(criarToggleGrupo(grupo), desligar);
+    controles.replaceChildren();
+    if (!grupo.trancado) {
+      controles.append(criarToggleGrupo(grupo), desligar);
+    }
 
     recursosContainer.replaceChildren();
 
@@ -625,6 +628,7 @@
     $("home-global-id").value = grupo?.global_id ?? "";
     $("home-name").value = grupo?.nome ?? "";
     $("home-desc").value = grupo?.descricao ?? "";
+    $("home-locked").checked = grupo?.trancado ?? false;
     $("home-delete").hidden = !grupo;
     $("home-members").replaceChildren();
 
@@ -707,6 +711,7 @@
       global_id: $("home-global-id").value.trim().toUpperCase(),
       nome: $("home-name").value.trim(),
       descricao: $("home-desc").value.trim(),
+      trancado: $("home-locked").checked,
     };
 
     try {
@@ -721,6 +726,7 @@
           body: JSON.stringify({
             nome: dados.nome,
             descricao: dados.descricao,
+            trancado: dados.trancado,
             global_id: dados.global_id,
           }),
         });

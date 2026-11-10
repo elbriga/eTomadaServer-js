@@ -69,6 +69,7 @@ test("CRUD de grupos e unicidade de group_id", () => {
 
     assert.equal(grupo.group_id, "ILUMINACAO");
     assert.equal(grupo.recursos.length, 0);
+    assert.equal(grupo.trancado, false);
 
     assert.equal(groups.criar({ group_id: "ILUMINACAO" }), null);
 
@@ -321,6 +322,7 @@ test("migração v9 para versão atual preserva associações", () => {
     db.exec(`
       DROP INDEX idx_groups_global_id;
       ALTER TABLE groups DROP COLUMN global_id;
+      ALTER TABLE groups DROP COLUMN trancado;
       ALTER TABLE resources DROP COLUMN otimizar_historico;
       ALTER TABLE events DROP COLUMN history_optimized;
       PRAGMA user_version = 9;
@@ -330,6 +332,7 @@ test("migração v9 para versão atual preserva associações", () => {
 
     const migrado = criarGroupRepository(db).buscar("ILUMINACAO");
     assert.equal(migrado.global_id, "ILUMINACAO");
+    assert.equal(migrado.trancado, false);
     assert.equal(migrado.recursos.length, 1);
 
     inicializarSchema(db);
@@ -338,6 +341,50 @@ test("migração v9 para versão atual preserva associações", () => {
       SCHEMA_VERSION,
     );
   } finally {
+    db.close();
+  }
+});
+
+
+test("grupo trancado persiste e bloqueia comandos coletivos na API", async () => {
+  const { db } = preparar();
+  const app = Fastify();
+  let chamadas = 0;
+  try {
+    await app.register(groupsRoutes, {
+      db,
+      permitirComandos: true,
+      comandos: { executarLote: async () => { chamadas++; return []; } },
+    });
+    const criado = await app.inject({
+      method: "POST", url: "/api/groups",
+      payload: { group_id: "GROW", trancado: true },
+    });
+    assert.equal(criado.statusCode, 201);
+    assert.equal(criado.json().trancado, true);
+    await app.inject({ method: "PUT", url: "/api/groups/GROW/resources/LUZ_GROW" });
+    await app.inject({ method: "PATCH", url: "/api/groups/GROW", payload: { nome: "Grow" } });
+    assert.equal((await app.inject("/api/groups/GROW")).json().trancado, true);
+    assert.equal((await app.inject("/api/groups")).json()[0].trancado, true);
+    for (const command of ["ON", "OFF"]) {
+      const resposta = await app.inject({
+        method: "POST", url: "/api/groups/GROW/commands", payload: { command },
+      });
+      assert.equal(resposta.statusCode, 403);
+      assert.equal(resposta.json().code, "GROUP_LOCKED");
+    }
+    assert.equal(chamadas, 0);
+    const editado = await app.inject({
+      method: "PATCH", url: "/api/groups/GROW", payload: { trancado: false },
+    });
+    assert.equal(editado.json().trancado, false);
+    assert.equal(editado.json().recursos.length, 1);
+    assert.equal((await app.inject({
+      method: "POST", url: "/api/groups/GROW/commands", payload: { command: "OFF" },
+    })).statusCode, 200);
+    assert.equal(chamadas, 1);
+  } finally {
+    await app.close();
     db.close();
   }
 });
