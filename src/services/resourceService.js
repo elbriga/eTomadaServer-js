@@ -15,9 +15,18 @@ export class ResourceCommandError extends Error {
   }
 }
 
-function normalizarEstado(valor) {
-  if (valor === true || valor === 1) return true;
-  if (valor === false || valor === 0) return false;
+function normalizarEstado(recurso) {
+  if (!recurso || !recurso.device) return null;
+
+  if (recurso.tipo == "RELE") {
+    const valor = recurso.device.estado;
+    if (valor === true || valor === 1) return true;
+    if (valor === false || valor === 0) return false;
+  } else if (recurso.tipo == "LEDRGB") {
+    const valor = recurso.device.anim;
+    if (valor === true || valor > 0) return true;
+    if (valor === false || valor === 0) return false;
+  }
   return null;
 }
 
@@ -151,7 +160,7 @@ export function criarResourceService({
       if (
         !retornado ||
         retornado.id !== recurso.recurso_id ||
-        retornado.tipo !== "RELE"
+        !["RELE", "LEDRGB"].includes(retornado.tipo)
       ) {
         throw new ResourceCommandError(
           "Resposta sem confirmação do recurso solicitado",
@@ -160,7 +169,7 @@ export function criarResourceService({
         );
       }
 
-      const estado = normalizarEstado(retornado.device?.estado);
+      const estado = normalizarEstado(retornado);
 
       if (estado === null) {
         throw new ResourceCommandError(
