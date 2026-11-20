@@ -1,15 +1,15 @@
 {
   "name": "etomadaserver",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "eTomadaServer",
   "main": "index.js",
   "scripts": {
     "format": "npx prettier --write \"**/*.js\"",
+    "check": "node --check src/server.js",
     "test": "node --test",
     "dev": "node --env-file=.env.dev src/server.js"
   },
   "author": "elbriga",
-  "license": "ISC",
   "type": "module",
   "dependencies": {
     "@fastify/static": "^10.1.7",
