@@ -6,7 +6,8 @@
 // Versão 10: Identificador global dos grupos
 // Versão 11: Otimização opcional do histórico de sensores
 // Versão 12: Bloqueio de comandos coletivos por grupo
-export const SCHEMA_VERSION = 12;
+// Versão 13: TOGGLEF convertido em TOGGLE com origemFollow.
+export const SCHEMA_VERSION = 13;
 
 const COLUNAS = {
   logs: [
@@ -384,6 +385,17 @@ const migracoes = {
     db.exec(`
       ALTER TABLE groups ADD COLUMN trancado INTEGER NOT NULL DEFAULT 0
         CHECK (trancado IN (0, 1));
+    `);
+  },
+  13(db) {
+    db.exec(`
+      UPDATE rules
+      SET acao_json = json_set(acao_json,
+            '$.comando', 'TOGGLE', '$.origemFollow', json('true')),
+          revision = revision + 1,
+          updated_at = unixepoch()
+      WHERE json_extract(acao_json, '$.tipo') = 'ESTADO'
+        AND json_extract(acao_json, '$.comando') = 'TOGGLEF';
     `);
   },
 };

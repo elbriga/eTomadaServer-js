@@ -128,7 +128,7 @@ window.criarEditorRegras = function criarEditorRegras({
                    min="1" max="4294967295" step="1" value="60" />
           </label>
         </div>
-        <label class="regra-follow">
+        <label class="regra-follow" data-ref="campoOrigemFollow">
           <input data-ref="origemFollow" type="checkbox" />
           Follow: Ajustar a origem conforme o destino
         </label>
@@ -221,6 +221,14 @@ window.criarEditorRegras = function criarEditorRegras({
       el("comando").value = "ON";
     }
 
+    const origem = recursos.find((r) => identificador(r) === el("origem").value);
+    const permiteOrigemFollow =
+      evento && estado &&
+      el("comando").value !== "FOLLOW" &&
+      ["RELE", "LEDRGB"].includes(origem?.tipo);
+    el("campoOrigemFollow").hidden = !permiteOrigemFollow;
+    el("origemFollow").disabled = !permiteOrigemFollow;
+
     const anterior = el("destino").value;
 
     const destinos = recursos
@@ -269,6 +277,7 @@ window.criarEditorRegras = function criarEditorRegras({
 
     el("acaoTipo").value = regra?.acao?.tipo ?? "ESTADO";
     el("comando").value = regra?.acao?.comando ?? "ON";
+    el("origemFollow").checked = regra?.acao?.origemFollow === true;
     el("timer").value = regra?.acao?.timer ?? 60;
 
     const origens = recursos
@@ -344,7 +353,8 @@ window.criarEditorRegras = function criarEditorRegras({
             tipo: "ESTADO",
             recurso: el("destino").value,
             comando: el("comando").value,
-            origemFollow: el("origemFollow").checked,
+            origemFollow:
+              !el("origemFollow").disabled && el("origemFollow").checked,
           }
         : {
             tipo: "TIMER",
@@ -493,7 +503,7 @@ window.criarEditorRegras = function criarEditorRegras({
     sujo = true;
 
     if (
-      ["quandoTipo", "acaoTipo", "usarCheck"].includes(
+      ["quandoTipo", "acaoTipo", "usarCheck", "comando", "origem"].includes(
         evento.target.dataset.ref,
       )
     ) {

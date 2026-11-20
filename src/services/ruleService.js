@@ -189,6 +189,19 @@ export function criarRuleService(db) {
       validarChaves(acao, ["tipo", "recurso", "comando", "origemFollow"]);
 
       exigir(COMANDOS.has(acao.comando), "Comando inválido");
+      exigir(
+        acao.origemFollow === undefined ||
+          typeof acao.origemFollow === "boolean",
+        "Campo origemFollow deve ser booleano",
+      );
+
+      if (acao.origemFollow === true) {
+        exigir(
+          condicao.tipo === "EVENTO",
+          "origemFollow exige condição de EVENTO",
+        );
+        recurso(condicao.recurso, true);
+      }
 
       if (acao.comando === "FOLLOW") {
         exigir(
@@ -201,6 +214,9 @@ export function criarRuleService(db) {
         tipo: "ESTADO",
         recurso: recurso(acao.recurso, true),
         comando: acao.comando,
+        ...(acao.origemFollow !== undefined
+          ? { origemFollow: acao.origemFollow }
+          : {}),
       };
 
       if (acaoValidada.recurso === "__ALERTA__") {

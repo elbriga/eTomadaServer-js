@@ -623,77 +623,85 @@ test("TOGGLE não executa com estado desconhecido", async () => {
   }
 });
 
-test("TOGGLEF inverte destino e corrige origem", async () => {
-  const { db, rules } = preparar();
-  const resources = criarResourceRepository(db);
-  const chamadas = [];
+for (const [comando, estadoDestino, esperado] of [
+  ["TOGGLE", false, "ON"],
+  ["ON", true, "ON"],
+  ["OFF", false, "OFF"],
+]) {
+  test(`${comando} com origemFollow corrige origem e executa destino`, async () => {
+    const { db, rules } = preparar();
+    const resources = criarResourceRepository(db);
+    const chamadas = [];
 
-  try {
-    resources.descobrir("GROW", [
-      { id: "R2", tipo: "RELE", nome: "Segundo relé" },
-    ]);
-    resources.atualizar("GROW", "R2", {
-      global_id: "LUZ_TESTE_R2",
-    });
+    try {
+      resources.descobrir("GROW", [
+        { id: "R2", tipo: "RELE", nome: "Segundo relé" },
+      ]);
+      resources.atualizar("GROW", "R2", {
+        global_id: "LUZ_TESTE_R2",
+      });
 
-    resources.aplicarEvento("GROW", "R1", { estado: false });
-    resources.aplicarEvento("GROW", "R2", { estado: false });
+      resources.aplicarEvento("GROW", "R1", { estado: false });
+      resources.aplicarEvento("GROW", "R2", { estado: estadoDestino });
 
-    rules.criar({
-      nome: "Teste TOGGLEF",
-      ativa: true,
-      escopo: "GLOBAL",
-      device_id: null,
-      quando: {
-        tipo: "EVENTO",
-        recurso: "LUZ_GROW",
-        evento: "TOGGLE",
-      },
-      acao: {
-        tipo: "ESTADO",
-        recurso: "LUZ_TESTE_R2",
-        comando: "TOGGLEF",
-      },
-    });
-
-    const engine = criarRuleEngine({
-      db,
-      modo: "execute",
-      log: { info() {}, warn() {}, error() {} },
-      comandos: {
-        async executar(globalId, comando) {
-          chamadas.push({ globalId, comando });
-
-          const recurso = resources.buscarGlobal(globalId);
-          resources.aplicarEvento(recurso.device_id, recurso.recurso_id, {
-            estado: comando === "ON",
-          });
-
-          return { command_id: chamadas.length };
+      rules.criar({
+        nome: "Teste origemFollow",
+        ativa: true,
+        escopo: "GLOBAL",
+        device_id: null,
+        quando: {
+          tipo: "EVENTO",
+          recurso: "LUZ_GROW",
+          evento: "TOGGLE",
         },
-      },
-    });
+        acao: {
+          tipo: "ESTADO",
+          recurso: "LUZ_TESTE_R2",
+          comando,
+          origemFollow: true,
+        },
+      });
 
-    await engine.processarEvento(
-      {
-        origem: "GROW",
-        id: "R1",
-        evento: "TOGGLE",
-        device: { estado: 0 },
-      },
-      1,
-    );
+      const engine = criarRuleEngine({
+        db,
+        modo: "execute",
+        log: { info() {}, warn() {}, error() {} },
+        comandos: {
+          async executar(globalId, comando) {
+            chamadas.push({ globalId, comando });
 
-    assert.deepEqual(chamadas, [
-      { globalId: "LUZ_GROW", comando: "ON" },
-      { globalId: "LUZ_TESTE_R2", comando: "ON" },
-    ]);
+            const recurso = resources.buscarGlobal(globalId);
+            resources.aplicarEvento(recurso.device_id, recurso.recurso_id, {
+              estado: comando === "ON",
+            });
 
-    await engine.parar();
-  } finally {
-    db.close();
-  }
-});
+            return { command_id: chamadas.length };
+          },
+        },
+      });
+
+      await engine.processarEvento(
+        {
+          origem: "GROW",
+          id: "R1",
+          evento: "TOGGLE",
+          device: { estado: esperado === "ON" ? 0 : 1 },
+        },
+        1,
+      );
+
+      assert.deepEqual(chamadas, [
+        { globalId: "LUZ_GROW", comando: esperado },
+        { globalId: "LUZ_TESTE_R2", comando: esperado },
+      ]);
+
+      await engine.parar();
+    } finally {
+      db.close();
+    }
+  });
+
+}
 
 test("TIMER executa OFF e permite cancelamento", async () => {
   const { db, rules } = preparar();
@@ -832,3 +840,52 @@ test("motor interrompe cascata de TOGGLE no mesmo relé", async () => {
     db.close();
   }
 });
+
+for (const caso of ["alinhada", "desconhecida", "mesmo recurso", "falha origem", "simulação", "desabilitada", "FOLLOW"]) {
+  test(`origemFollow: ${caso}`, async () => {
+    const { db, rules } = preparar();
+    const resources = criarResourceRepository(db);
+    const chamadas = [];
+    let engine;
+
+    try {
+      resources.descobrir("GROW", [{ id: "R2", tipo: "RELE", nome: "Origem" }]);
+      resources.atualizar("GROW", "R2", { global_id: "ORIGEM" });
+      resources.aplicarEvento("GROW", "R1", { estado: false });
+      if (caso !== "desconhecida") {
+        resources.aplicarEvento("GROW", "R2", { estado: caso === "alinhada" });
+      }
+      rules.criar({
+        nome: "Ajuste origem",
+        ativa: true,
+        escopo: "GLOBAL",
+        device_id: null,
+        quando: { tipo: "EVENTO", recurso: caso === "mesmo recurso" ? "LUZ_GROW" : "ORIGEM", evento: "TOGGLE" },
+        acao: { tipo: "ESTADO", recurso: "LUZ_GROW", comando: caso === "FOLLOW" ? "FOLLOW" : "ON", origemFollow: caso !== "desabilitada" },
+      });
+      engine = criarRuleEngine({
+        db,
+        modo: caso === "simulação" ? "simulate" : "execute",
+        log: { info() {}, warn() {}, error() {} },
+        comandos: {
+          async executar(globalId, comando, destino) {
+            chamadas.push({ globalId, comando, destino });
+            if (caso === "falha origem") throw new Error("Origem indisponível");
+            return { command_id: chamadas.length };
+          },
+        },
+      });
+      await engine.processarEvento({ origem: "GROW", id: caso === "mesmo recurso" ? "R1" : "R2", evento: "TOGGLE", device: {} });
+
+      const origem = { globalId: "ORIGEM", comando: "ON", destino: { device_id: "GROW", recurso_id: "R2" } };
+      const destino = { globalId: "LUZ_GROW", comando: caso === "FOLLOW" ? "OFF" : "ON", destino: { device_id: "GROW", recurso_id: "R1" } };
+      assert.deepEqual(chamadas,
+        caso === "simulação" ? [] :
+        caso === "falha origem" ? [origem] :
+        caso === "desconhecida" ? [origem, destino] : [destino]);
+    } finally {
+      await engine?.parar();
+      db.close();
+    }
+  });
+}

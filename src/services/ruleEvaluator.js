@@ -52,10 +52,10 @@ export function avaliarRegra(regra, evento, valores = {}, log = null) {
 
   if (!disparou || !checkAtendido(condicao.check, valores)) return null;
 
-  // log?.info(
-  //   { module: "RULES", regra_id: regra.id, revision: regra.revision, evento },
-  //   "Regra disparou",
-  // );
+  log?.info(
+    { module: "RULES", regra_id: regra.id, revision: regra.revision, evento },
+    "Regra disparou",
+  );
 
   return {
     regra_id: regra.id,

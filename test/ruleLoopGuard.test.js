@@ -43,7 +43,7 @@ test("limite de um relé não bloqueia os demais", () => {
   assert.equal(guard.permitir(["SW6FRI/R2"]).permitido, true);
 });
 
-test("TOGGLEF reserva os dois relés atomicamente", () => {
+test("origemFollow reserva os dois relés atomicamente", () => {
   const guard = criarRuleLoopGuard({
     maxAcoes: 1,
     agora: () => 1000,

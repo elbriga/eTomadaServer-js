@@ -316,3 +316,96 @@ test("limite de 64 regras locais por nodo", async () => {
     db.close();
   }
 });
+
+for (const escopo of ["GLOBAL", "LOCAL"]) {
+  test(`API ${escopo} preserva origemFollow ao criar, editar e consultar`, async () => {
+    const db = prepararBanco();
+    const app = Fastify();
+
+    try {
+      await app.register(rulesRoutes, { db });
+      const corpo = {
+        ...(escopo === "GLOBAL" ? globalBody : localBody),
+        quando: {
+          tipo: "EVENTO",
+          recurso: escopo === "GLOBAL" ? "LUZ_GROW" : "R1",
+          evento: "TOGGLE",
+        },
+        acao: {
+          tipo: "ESTADO",
+          recurso: escopo === "GLOBAL" ? "LUZ_GROW" : "R1",
+          comando: "TOGGLE",
+          origemFollow: true,
+        },
+      };
+      const criada = await app.inject({ method: "POST", url: "/api/rules", payload: corpo });
+      assert.equal(criada.statusCode, 201);
+      let regra = criada.json();
+      assert.equal(regra.acao.origemFollow, true);
+
+      for (const origemFollow of [false, true]) {
+        const resposta = await app.inject({
+          method: "PUT",
+          url: `/api/rules/${regra.id}`,
+          payload: { ...corpo, acao: { ...corpo.acao, origemFollow }, revision: regra.revision },
+        });
+        assert.equal(resposta.statusCode, 200);
+        regra = resposta.json();
+        assert.equal(regra.acao.origemFollow, origemFollow);
+        const consulta = await app.inject(`/api/rules/${regra.id}`);
+        assert.equal(consulta.json().acao.origemFollow, origemFollow);
+        assert.equal(criarRuleRepository(db).buscar(regra.id).acao.origemFollow, origemFollow);
+      }
+
+      for (const invalido of ["true", 1, null]) {
+        const resposta = await app.inject({
+          method: "POST", url: "/api/rules",
+          payload: { ...corpo, acao: { ...corpo.acao, origemFollow: invalido } },
+        });
+        assert.equal(resposta.statusCode, 400);
+      }
+      for (const alteracao of [
+        { quando: { tipo: "HORARIO", hora: 12, minuto: 0 } },
+        { quando: { tipo: "EVENTO", recurso: escopo === "GLOBAL" ? "BOTAO_GROW" : "B1", evento: "CLICK" } },
+        { acao: { ...corpo.acao, comando: "TOGGLEF" } },
+        { acao: { tipo: "TIMER", recurso: corpo.acao.recurso, timer: 60, origemFollow: true } },
+      ]) {
+        const resposta = await app.inject({
+          method: "POST", url: "/api/rules", payload: { ...corpo, ...alteracao },
+        });
+        assert.equal(resposta.statusCode, 400);
+      }
+    } finally {
+      await app.close();
+      db.close();
+    }
+  });
+}
+
+test("migração converte TOGGLEF sem alterar outras ações ou dados administrativos", () => {
+  const db = prepararBanco();
+
+  try {
+    const rules = criarRuleRepository(db);
+    const outras = rules.criar({ ...globalBody, device_id: null });
+    const legadas = ["GLOBAL", "LOCAL"].map((escopo) => rules.criar({
+      ...(escopo === "GLOBAL" ? { ...globalBody, device_id: null } : localBody),
+      acao: { tipo: "ESTADO", recurso: escopo === "GLOBAL" ? "LUZ_GROW" : "R1", comando: "TOGGLEF" },
+    }));
+    db.exec("PRAGMA user_version = 12");
+    inicializarSchema(db);
+    inicializarSchema(db);
+
+    for (const anterior of legadas) {
+      assert.deepEqual(rules.buscar(anterior.id), {
+        ...anterior,
+        acao: { ...anterior.acao, comando: "TOGGLE", origemFollow: true },
+        revision: anterior.revision + 1,
+        updated_at: rules.buscar(anterior.id).updated_at,
+      });
+    }
+    assert.deepEqual(rules.buscar(outras.id), outras);
+  } finally {
+    db.close();
+  }
+});

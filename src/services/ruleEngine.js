@@ -286,17 +286,26 @@ export function criarRuleEngine({
         }
 
         comandoFinal = valor !== 0 ? "ON" : "OFF";
-      } else if (tipo === "ESTADO" && origemFollow) {
-        // origemFollow somente se comando nao é FOLLOW
+      } else if (tipo === "ESTADO" && origemFollow === true) {
+        if (atual.quando.tipo !== "EVENTO") {
+          log.warn(contexto, "origemFollow exige condição de evento");
+          continue;
+        }
         const origemGlobal = atual.quando.recurso;
+        const recursoOrigem = resources.buscarGlobal(origemGlobal);
+
+        if (!["RELE", "LEDRGB"].includes(recursoOrigem?.tipo)) {
+          log.warn(contexto, "origemFollow exige origem relé ou LED válido");
+          continue;
+        }
 
         if (origemGlobal !== recurso) {
-          const estadoOrigem = !!(Object.hasOwn(valoresEvento, origemGlobal)
+          const estadoOrigem = Object.hasOwn(valoresEvento, origemGlobal)
             ? valoresEvento[origemGlobal]
-            : obterEstadoRecurso(origemGlobal));
-          const novoEstado = comandoFinal === "ON";
+            : obterEstadoRecurso(origemGlobal);
+          const novoEstado = comandoFinal === "ON" ? 1 : 0;
 
-          if (estadoOrigem != novoEstado) {
+          if (estadoOrigem !== novoEstado) {
             ajusteOrigem = {
               recurso: origemGlobal,
               device_id: recursoOrigem.device_id,
@@ -342,7 +351,6 @@ export function criarRuleEngine({
       if (!permitirAcaoFisica(destinosFisicos, contexto)) continue;
 
       try {
-        // TODO :: origemFollow dentro do try : se falahar não muda o destino > colocar fora do try?
         // origemFollow > corrige a origem antes de alterar o destino.
         if (ajusteOrigem) {
           await comandos.executar(ajusteOrigem.recurso, comandoFinal, {

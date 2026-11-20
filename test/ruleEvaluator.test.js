@@ -174,7 +174,7 @@ test("preserva comandos e TIMER sem modificar a regra", () => {
     { tipo: "ESTADO", recurso: "LUZ_GROW", comando: "OFF" },
     { tipo: "ESTADO", recurso: "LUZ_GROW", comando: "TOGGLE" },
     { tipo: "ESTADO", recurso: "LUZ_GROW", comando: "FOLLOW" },
-    { tipo: "ESTADO", recurso: "LUZ_GROW", comando: "TOGGLEF" },
+    { tipo: "ESTADO", recurso: "LUZ_GROW", comando: "TOGGLE", origemFollow: true },
     { tipo: "TIMER", recurso: "LUZ_GROW", timer: 90 },
   ];
 

@@ -91,3 +91,16 @@ test("rejeita IDs duplicados", () => {
     TypeError,
   );
 });
+
+test("pacote preserva origemFollow e sua alteração muda a revisão", () => {
+  const montar = (origemFollow) => montarPacoteRegrasLocais("GROW", [{
+    ...regra,
+    acao: { ...regra.acao, origemFollow },
+  }]);
+  const habilitado = montar(true);
+  const desabilitado = montar(false);
+
+  assert.equal(habilitado.regras[0].acao.origemFollow, true);
+  assert.equal(desabilitado.regras[0].acao.origemFollow, false);
+  assert.notEqual(habilitado.revision, desabilitado.revision);
+});
