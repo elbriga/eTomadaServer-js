@@ -193,7 +193,7 @@ export function criarRuleEngine({
 
   async function executarAcoes(acoes, origem, valoresEvento = {}) {
     for (const plano of acoes) {
-      const { tipo, recurso, comando } = plano.acao;
+      const { tipo, recurso, comando, origemFollow } = plano.acao;
 
       const contexto = {
         module: "RULES",
@@ -214,11 +214,13 @@ export function criarRuleEngine({
         continue;
       }
 
-      if (!(
-        (tipo === "ESTADO" &&
-          ["ON", "OFF", "TOGGLE", "FOLLOW", "TOGGLEF"].includes(comando)) ||
-        tipo === "TIMER"
-      )) {
+      if (
+        !(
+          (tipo === "ESTADO" &&
+            ["ON", "OFF", "TOGGLE", "FOLLOW"].includes(comando)) ||
+          tipo === "TIMER"
+        )
+      ) {
         log.warn(
           contexto,
           `Ação [${tipo}][${comando}] ainda não suportada pelo executor`,
@@ -284,37 +286,23 @@ export function criarRuleEngine({
         }
 
         comandoFinal = valor !== 0 ? "ON" : "OFF";
-      }
-
-      // TOGGLEF > inverte destino e sincroniza a origem.
-      if (comando === "TOGGLEF") {
-        const estadoDestino = obterEstadoRecurso(recurso);
+      } else if (tipo === "ESTADO" && origemFollow) {
+        // origemFollow somente se comando nao é FOLLOW
         const origemGlobal = atual.quando.recurso;
-        const recursoOrigem = resources.buscarGlobal(origemGlobal);
 
-        const estadoOrigem = Object.hasOwn(valoresEvento, origemGlobal)
-          ? valoresEvento[origemGlobal]
-          : obterEstadoRecurso(origemGlobal);
+        if (origemGlobal !== recurso) {
+          const estadoOrigem = !!(Object.hasOwn(valoresEvento, origemGlobal)
+            ? valoresEvento[origemGlobal]
+            : obterEstadoRecurso(origemGlobal));
+          const novoEstado = comandoFinal === "ON";
 
-        if (
-          atual.quando.tipo !== "EVENTO" ||
-          estadoDestino === null ||
-          recursoOrigem?.tipo !== "RELE" ||
-          ![0, 1].includes(estadoOrigem)
-        ) {
-          log.warn(contexto, "TOGGLEF ignorado: estados ou origem inválidos");
-          continue;
-        }
-
-        const novoEstado = estadoDestino ? 0 : 1;
-        comandoFinal = novoEstado ? "ON" : "OFF";
-
-        if (origemGlobal !== recurso && estadoOrigem !== novoEstado) {
-          ajusteOrigem = {
-            recurso: origemGlobal,
-            device_id: recursoOrigem.device_id,
-            recurso_id: recursoOrigem.recurso_id,
-          };
+          if (estadoOrigem != novoEstado) {
+            ajusteOrigem = {
+              recurso: origemGlobal,
+              device_id: recursoOrigem.device_id,
+              recurso_id: recursoOrigem.recurso_id,
+            };
+          }
         }
       }
 
@@ -354,8 +342,8 @@ export function criarRuleEngine({
       if (!permitirAcaoFisica(destinosFisicos, contexto)) continue;
 
       try {
-        // TODO :: TOGGLEF dentro do try : se falahar não muda o destino > colocar fora do try?
-        // TOGGLEF > corrige a origem antes de alterar o destino.
+        // TODO :: origemFollow dentro do try : se falahar não muda o destino > colocar fora do try?
+        // origemFollow > corrige a origem antes de alterar o destino.
         if (ajusteOrigem) {
           await comandos.executar(ajusteOrigem.recurso, comandoFinal, {
             device_id: ajusteOrigem.device_id,

@@ -121,7 +121,6 @@ window.criarEditorRegras = function criarEditorRegras({
               <option>OFF</option>
               <option>TOGGLE</option>
               <option>FOLLOW</option>
-              <option>TOGGLEF</option>
             </select>
           </label>
           <label data-ref="campoTimer">Timer (segundos)
@@ -129,6 +128,10 @@ window.criarEditorRegras = function criarEditorRegras({
                    min="1" max="4294967295" step="1" value="60" />
           </label>
         </div>
+        <label class="regra-follow">
+          <input data-ref="origemFollow" type="checkbox" />
+          Follow: Ajustar a origem conforme o destino
+        </label>
       </fieldset>
 
       <div class="regra-botoes">
@@ -209,12 +212,12 @@ window.criarEditorRegras = function criarEditorRegras({
     el("campoComando").hidden = !estado;
     el("campoTimer").hidden = estado;
 
-    // FOLLOW e TOGGLEF exigem evento.
+    // FOLLOW exige evento.
     for (const opcao of el("comando").options) {
-      opcao.disabled = !evento && ["FOLLOW", "TOGGLEF"].includes(opcao.value);
+      opcao.disabled = !evento && opcao.value === "FOLLOW";
     }
 
-    if (!evento && ["FOLLOW", "TOGGLEF"].includes(el("comando").value)) {
+    if (!evento && el("comando").value === "FOLLOW") {
       el("comando").value = "ON";
     }
 
@@ -341,6 +344,7 @@ window.criarEditorRegras = function criarEditorRegras({
             tipo: "ESTADO",
             recurso: el("destino").value,
             comando: el("comando").value,
+            origemFollow: el("origemFollow").checked,
           }
         : {
             tipo: "TIMER",
@@ -374,7 +378,9 @@ window.criarEditorRegras = function criarEditorRegras({
   function resumoAcao(regra) {
     const a = regra.acao;
     return `${a.recurso}: ${
-      a.tipo === "TIMER" ? `TIMER ${a.timer}s` : a.comando
+      a.tipo === "TIMER"
+        ? `TIMER ${a.timer}s`
+        : `${a.comando}${a.origemFollow === true ? " + Follow" : ""}`
     }`;
   }
 

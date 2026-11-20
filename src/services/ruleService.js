@@ -4,7 +4,7 @@ import { criarResourceRepository } from "../repositories/resourceRepository.js";
 
 const EVENTOS = new Set(["TOGGLE", "CLICK", "DUPCLICK", "LIGOU", "DESLIGOU"]);
 
-const COMANDOS = new Set(["ON", "OFF", "TOGGLE", "FOLLOW", "TOGGLEF"]);
+const COMANDOS = new Set(["ON", "OFF", "TOGGLE", "FOLLOW"]);
 
 const OPERACOES = new Set([">", "<", "=", "!=", ">=", "<="]);
 
@@ -186,11 +186,11 @@ export function criarRuleService(db) {
     let acaoValidada;
 
     if (acao.tipo === "ESTADO") {
-      validarChaves(acao, ["tipo", "recurso", "comando"]);
+      validarChaves(acao, ["tipo", "recurso", "comando", "origemFollow"]);
 
       exigir(COMANDOS.has(acao.comando), "Comando inválido");
 
-      if (["FOLLOW", "TOGGLEF"].includes(acao.comando)) {
+      if (acao.comando === "FOLLOW") {
         exigir(
           condicao.tipo === "EVENTO",
           `${acao.comando} exige condição de EVENTO`,
