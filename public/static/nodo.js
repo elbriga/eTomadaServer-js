@@ -118,7 +118,13 @@ $("nodo-cancelar").addEventListener("click", () => {
 formCadastro.addEventListener("submit", async (evento) => {
   evento.preventDefault();
 
-  if (!deviceId || !ultimoNodo || ultimoNodo.pendente || salvandoCadastro || removendoNodo) {
+  if (
+    !deviceId ||
+    !ultimoNodo ||
+    ultimoNodo.pendente ||
+    salvandoCadastro ||
+    removendoNodo
+  ) {
     return;
   }
 
@@ -158,11 +164,21 @@ formCadastro.addEventListener("submit", async (evento) => {
 });
 
 botaoRemover.addEventListener("click", async () => {
-  if (!deviceId || !ultimoNodo || ultimoNodo.pendente || salvandoCadastro || removendoNodo) {
+  if (
+    !deviceId ||
+    !ultimoNodo ||
+    ultimoNodo.pendente ||
+    salvandoCadastro ||
+    removendoNodo
+  ) {
     return;
   }
 
-  if (!confirm(`Deseja remover o nodo ${deviceId} do cadastro? Esta ação não pode ser desfeita. Se o dispositivo continuar enviando snapshots, poderá aparecer novamente como novo.`)) {
+  if (
+    !confirm(
+      `Deseja remover o nodo ${deviceId} do cadastro? Esta ação não pode ser desfeita. Se o dispositivo continuar enviando snapshots, poderá aparecer novamente como novo.`,
+    )
+  ) {
     return;
   }
 
@@ -185,8 +201,19 @@ botaoRemover.addEventListener("click", async () => {
 });
 
 botaoRemoverDescoberto.addEventListener("click", async () => {
-  if (!deviceId || !ultimoNodo?.pendente || removendoNodo || verificandoNovoNodo) return;
-  if (!confirm(`Deseja remover o dispositivo descoberto ${deviceId}? Se ele enviar outro snapshot, aparecerá novamente como novo.`)) return;
+  if (
+    !deviceId ||
+    !ultimoNodo?.pendente ||
+    removendoNodo ||
+    verificandoNovoNodo
+  )
+    return;
+  if (
+    !confirm(
+      `Deseja remover o dispositivo descoberto ${deviceId}? Se ele enviar outro snapshot, aparecerá novamente como novo.`,
+    )
+  )
+    return;
 
   removendoNodo = true;
   botaoRemoverDescoberto.disabled = true;
@@ -501,8 +528,12 @@ function renderizarRecursos() {
       checkbox.dataset.campo = "otimizar_historico";
       checkbox.checked = Boolean(recurso.otimizar_historico);
       checkbox.disabled = !editando;
-      checkbox.setAttribute("aria-label", `Otimizar histórico de ${recurso.nome || recurso.recurso_id}`);
-      checkbox.title = "Reduz ruído e substitui permanentemente leituras antigas por médias. Desmarcar não restaura os originais.";
+      checkbox.setAttribute(
+        "aria-label",
+        `Otimizar histórico de ${recurso.nome || recurso.recurso_id}`,
+      );
+      checkbox.title =
+        "Reduz ruído e substitui permanentemente leituras antigas por médias. Desmarcar não restaura os originais.";
       tdOtimizacao.appendChild(checkbox);
     }
 

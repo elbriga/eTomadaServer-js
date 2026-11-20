@@ -79,11 +79,15 @@ function qualidadeWifi(dbm) {
   // Escala aproximada: -100 dBm equivale a 0 e -50 dBm a 100.
   const pontos = Math.round(Math.max(0, Math.min(100, 2 * (dbm + 100))));
   const [descricao, classe] =
-    pontos >= 80 ? ["Excelente", "excelente"] :
-    pontos >= 60 ? ["Bom", "bom"] :
-    pontos >= 40 ? ["Regular", "regular"] :
-    pontos >= 20 ? ["Fraco", "fraco"] :
-    ["Muito fraco", "muito-fraco"];
+    pontos >= 80
+      ? ["Excelente", "excelente"]
+      : pontos >= 60
+        ? ["Bom", "bom"]
+        : pontos >= 40
+          ? ["Regular", "regular"]
+          : pontos >= 20
+            ? ["Fraco", "fraco"]
+            : ["Muito fraco", "muito-fraco"];
 
   return { texto: `${descricao} (${pontos})`, classe };
 }

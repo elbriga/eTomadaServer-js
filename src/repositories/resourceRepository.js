@@ -191,9 +191,14 @@ export function criarResourceRepository(db) {
           ? atual.descricao
           : alteracoes.descricao.trim();
 
-      update.run(globalId, nome, descricao,
+      update.run(
+        globalId,
+        nome,
+        descricao,
         Number(alteracoes.otimizar_historico ?? atual.otimizar_historico),
-        atual.device_id, atual.recurso_id);
+        atual.device_id,
+        atual.recurso_id,
+      );
 
       return buscarFisico.get(atual.device_id, atual.recurso_id);
     },

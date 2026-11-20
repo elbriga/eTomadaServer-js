@@ -214,13 +214,11 @@ export function criarRuleEngine({
         continue;
       }
 
-      if (
-        !(
-          (tipo === "ESTADO" &&
-            ["ON", "OFF", "TOGGLE", "FOLLOW", "TOGGLEF"].includes(comando)) ||
-          tipo === "TIMER"
-        )
-      ) {
+      if (!(
+        (tipo === "ESTADO" &&
+          ["ON", "OFF", "TOGGLE", "FOLLOW", "TOGGLEF"].includes(comando)) ||
+        tipo === "TIMER"
+      )) {
         log.warn(
           contexto,
           `Ação [${tipo}][${comando}] ainda não suportada pelo executor`,

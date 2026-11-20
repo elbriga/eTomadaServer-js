@@ -24,10 +24,11 @@ test("remover descoberta preserva cadastrados e permite nova descoberta", async 
       monitor: { resetar: (id) => resetados.push(id) },
     });
     novos.registrar({ device_id: "NOVO", recursos: [] });
-    const remover = (id) => app.inject({
-      method: "DELETE",
-      url: `/api/nodes/pending/${id}`,
-    });
+    const remover = (id) =>
+      app.inject({
+        method: "DELETE",
+        url: `/api/nodes/pending/${id}`,
+      });
     assert.equal((await remover("novo")).statusCode, 204);
     assert.equal(novos.buscar("NOVO"), null);
     assert.deepEqual(resetados, ["NOVO"]);

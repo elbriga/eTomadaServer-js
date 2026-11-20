@@ -345,7 +345,6 @@ test("migração v9 para versão atual preserva associações", () => {
   }
 });
 
-
 test("grupo trancado persiste e bloqueia comandos coletivos na API", async () => {
   const { db } = preparar();
   const app = Fastify();
@@ -354,34 +353,58 @@ test("grupo trancado persiste e bloqueia comandos coletivos na API", async () =>
     await app.register(groupsRoutes, {
       db,
       permitirComandos: true,
-      comandos: { executarLote: async () => { chamadas++; return []; } },
+      comandos: {
+        executarLote: async () => {
+          chamadas++;
+          return [];
+        },
+      },
     });
     const criado = await app.inject({
-      method: "POST", url: "/api/groups",
+      method: "POST",
+      url: "/api/groups",
       payload: { group_id: "GROW", trancado: true },
     });
     assert.equal(criado.statusCode, 201);
     assert.equal(criado.json().trancado, true);
-    await app.inject({ method: "PUT", url: "/api/groups/GROW/resources/LUZ_GROW" });
-    await app.inject({ method: "PATCH", url: "/api/groups/GROW", payload: { nome: "Grow" } });
+    await app.inject({
+      method: "PUT",
+      url: "/api/groups/GROW/resources/LUZ_GROW",
+    });
+    await app.inject({
+      method: "PATCH",
+      url: "/api/groups/GROW",
+      payload: { nome: "Grow" },
+    });
     assert.equal((await app.inject("/api/groups/GROW")).json().trancado, true);
     assert.equal((await app.inject("/api/groups")).json()[0].trancado, true);
     for (const command of ["ON", "OFF"]) {
       const resposta = await app.inject({
-        method: "POST", url: "/api/groups/GROW/commands", payload: { command },
+        method: "POST",
+        url: "/api/groups/GROW/commands",
+        payload: { command },
       });
       assert.equal(resposta.statusCode, 403);
       assert.equal(resposta.json().code, "GROUP_LOCKED");
     }
     assert.equal(chamadas, 0);
     const editado = await app.inject({
-      method: "PATCH", url: "/api/groups/GROW", payload: { trancado: false },
+      method: "PATCH",
+      url: "/api/groups/GROW",
+      payload: { trancado: false },
     });
     assert.equal(editado.json().trancado, false);
     assert.equal(editado.json().recursos.length, 1);
-    assert.equal((await app.inject({
-      method: "POST", url: "/api/groups/GROW/commands", payload: { command: "OFF" },
-    })).statusCode, 200);
+    assert.equal(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/groups/GROW/commands",
+          payload: { command: "OFF" },
+        })
+      ).statusCode,
+      200,
+    );
     assert.equal(chamadas, 1);
   } finally {
     await app.close();

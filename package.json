@@ -4,6 +4,7 @@
   "description": "eTomadaServer",
   "main": "index.js",
   "scripts": {
+    "format": "npx prettier --write \"**/*.js\"",
     "test": "node --test",
     "dev": "node --env-file=.env.dev src/server.js"
   },

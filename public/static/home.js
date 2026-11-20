@@ -241,7 +241,9 @@
     const botao = elemento("button", "home-toggle home-toggle-grupo");
     botao.type = "button";
     botao.disabled =
-      ocupado || info.estado === "empty" || (somenteDesligar && info.estado === "off");
+      ocupado ||
+      info.estado === "empty" ||
+      (somenteDesligar && info.estado === "off");
 
     botao.classList.toggle("ligado", info.estado === "on");
     botao.classList.toggle(

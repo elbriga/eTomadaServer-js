@@ -390,8 +390,14 @@ export default async function resourcesRoutes(
       const { device_id, recurso_id } = request.params;
 
       const configuracao = resources.buscar(device_id, recurso_id);
-      if (request.body.otimizar_historico !== undefined && configuracao && configuracao.tipo !== "SENSOR") {
-        return reply.code(422).send({ detail: "Otimização disponível apenas para SENSOR" });
+      if (
+        request.body.otimizar_historico !== undefined &&
+        configuracao &&
+        configuracao.tipo !== "SENSOR"
+      ) {
+        return reply
+          .code(422)
+          .send({ detail: "Otimização disponível apenas para SENSOR" });
       }
 
       // Protege referências de regras globais ao renomear global_id
@@ -434,7 +440,10 @@ export default async function resourcesRoutes(
           db.exec("ROLLBACK");
           throw erro;
         }
-        return atualizado ?? reply.code(404).send({ detail: "Recurso não encontrado" });
+        return (
+          atualizado ??
+          reply.code(404).send({ detail: "Recurso não encontrado" })
+        );
       } catch (erro) {
         if (
           erro.message?.includes(

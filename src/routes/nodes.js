@@ -35,7 +35,9 @@ export default async function nodesRoutes(app, { db, monitor }) {
         return reply.code(409).send({ detail: "Nodo já cadastrado" });
       }
       if (!novos.excluir(deviceId)) {
-        return reply.code(404).send({ detail: "Dispositivo descoberto não encontrado" });
+        return reply
+          .code(404)
+          .send({ detail: "Dispositivo descoberto não encontrado" });
       }
       monitor.resetar(deviceId);
       return reply.code(204).send();
